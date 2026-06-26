@@ -1,0 +1,13 @@
+{
+  "name": "cs2-panel",
+  "version": "1.0.0",
+  "description": "Web control panel for a CS2 dedicated server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  }
+}

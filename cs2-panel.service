@@ -1,0 +1,20 @@
+[Unit]
+Description=CS2 Web Control Panel
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cs2-panel
+ExecStart=/usr/bin/node /opt/cs2-panel/server.js
+Restart=on-failure
+RestartSec=5
+# ---- EDIT THESE ----
+Environment=PANEL_USER=admin
+Environment=PANEL_PASS=ChangeThisPanelPassword
+Environment=PANEL_PORT=8080
+Environment=SESSION_SECRET=some-long-random-string-here
+Environment=VARS_FILE=/home/steam/cs2_server/server-vars.conf
+Environment=CS2_SERVICE=cs2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS2 Control Panel</title>
+
+<!-- Bootstrap 5 -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Font Awesome 6 -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<!-- Poki-style rounded font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --poki:#5c2eff; --poki2:#9b4dff; --pink:#ff44c4;
+    --yellow:#ffc019; --green:#1ecb6b; --red:#ff4d5e; --blue:#2f8bff; --ink:#1f1640;
+  }
+  *{font-family:'Poppins',system-ui,sans-serif}
+  h1,h2,h3,.fw-head{font-family:'Baloo 2',cursive}
+  body{
+    margin:0;min-height:100vh;color:var(--ink);
+    background:linear-gradient(160deg,#6a2bff 0%,#8b3dff 45%,#b14dff 100%) fixed;
+  }
+  /* floating playful blobs */
+  body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(2px);opacity:.25;z-index:0}
+  body::before{width:340px;height:340px;background:#ff44c4;top:-90px;right:-60px}
+  body::after{width:300px;height:300px;background:#ffc019;bottom:-110px;left:-70px}
+
+  .navbar-poki{background:rgba(31,22,64,.35);backdrop-filter:blur(8px);position:relative;z-index:2}
+  .brand{font-family:'Baloo 2';font-weight:800;font-size:1.5rem;color:#fff;letter-spacing:.5px}
+  .brand .two{color:var(--yellow)}
+
+  .container-main{position:relative;z-index:2;max-width:1040px}
+
+  .pcard{background:#fff;border:none;border-radius:26px;box-shadow:0 18px 40px rgba(31,16,64,.25);overflow:hidden}
+  .pcard .head{display:flex;align-items:center;gap:10px;padding:16px 22px;font-family:'Baloo 2';font-weight:700;font-size:1.05rem;color:#fff}
+  .head-power{background:linear-gradient(90deg,#1ecb6b,#13b07d)}
+  .head-set{background:linear-gradient(90deg,#5c2eff,#9b4dff)}
+  .head-con{background:linear-gradient(90deg,#2f8bff,#5c2eff)}
+  .head-log{background:linear-gradient(90deg,#ff7a18,#ff4d5e)}
+  .pcard .body{padding:20px 22px}
+
+  .btn-poki{border:none;border-radius:16px;font-weight:600;padding:12px 20px;color:#fff;box-shadow:0 6px 0 rgba(0,0,0,.12);transition:.08s}
+  .btn-poki:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.12)}
+  .b-green{background:var(--green)} .b-red{background:var(--red)} .b-blue{background:var(--blue)}
+  .b-yellow{background:var(--yellow);color:#3a2a00} .b-purple{background:var(--poki)} .b-ghost{background:#efeaff;color:var(--poki);box-shadow:0 6px 0 #d9ceff}
+
+  .form-control,.form-select{border-radius:14px;border:2px solid #ece8ff;padding:11px 14px;font-weight:500}
+  .form-control:focus,.form-select:focus{border-color:var(--poki);box-shadow:0 0 0 .2rem rgba(92,46,255,.15)}
+  label.lbl{font-weight:600;font-size:.8rem;color:#7a6fb0;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+
+  .status-pill{display:inline-flex;align-items:center;gap:8px;background:#fff;border-radius:30px;padding:7px 16px;font-family:'Baloo 2';font-weight:700}
+  .dot{width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 4px rgba(255,255,255,.35)}
+
+  pre.out{background:#140c2e;color:#d9f0ff;border-radius:16px;padding:14px;max-height:300px;overflow:auto;font-size:12.5px;white-space:pre-wrap;word-break:break-word;font-family:'Consolas',monospace}
+  .conn{font-family:'Consolas',monospace;background:#efeaff;color:var(--poki);padding:6px 12px;border-radius:12px;font-size:.85rem;font-weight:600}
+
+  /* login */
+  #login{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center}
+  #login .pcard{width:360px}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="pcard">
+    <div class="head head-set"><i class="fa-solid fa-gamepad"></i> CS2 Panel — Sign In</div>
+    <div class="body">
+      <label class="lbl">Username</label>
+      <input id="lu" class="form-control mb-3" autocomplete="username">
+      <label class="lbl">Password</label>
+      <input id="lp" type="password" class="form-control mb-3" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+      <button class="btn-poki b-purple w-100" onclick="login()"><i class="fa-solid fa-right-to-bracket me-1"></i> Sign in</button>
+      <div class="text-danger small mt-2" id="lerr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hide">
+
+<nav class="navbar navbar-poki px-4 py-3">
+  <span class="brand"><i class="fa-solid fa-crosshairs me-2" style="color:var(--yellow)"></i>CS<span class="two">2</span> Control Panel</span>
+  <div class="d-flex align-items-center gap-2">
+    <span class="status-pill"><span class="dot" id="dot"></span><span id="stxt">…</span></span>
+    <button class="btn-poki b-ghost py-2" onclick="logout()"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+  </div>
+</nav>
+
+<div class="container container-main py-4">
+  <div class="row g-4">
+
+    <!-- POWER -->
+    <div class="col-12">
+      <div class="pcard">
+        <div class="head head-power"><i class="fa-solid fa-power-off"></i> Server Power</div>
+        <div class="body">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button class="btn-poki b-green" onclick="ctl('start')"><i class="fa-solid fa-play me-1"></i> Start</button>
+            <button class="btn-poki b-red" onclick="ctl('stop')"><i class="fa-solid fa-stop me-1"></i> Stop</button>
+            <button class="btn-poki b-blue" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
+            <button class="btn-poki b-yellow" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
+            <span class="conn ms-auto" id="connstr"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="col-12">
+      <div class="pcard">
+        <div class="head head-set"><i class="fa-solid fa-sliders"></i> Match Settings</div>
+        <div class="body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="lbl"><i class="fa-solid fa-map me-1"></i>Map</label>
+              <select id="map" class="form-select">
+                <option>de_inferno</option><option>de_dust2</option><option>de_mirage</option>
+                <option>de_nuke</option><option>de_overpass</option><option>de_ancient</option>
+                <option>de_vertigo</option><option>de_anubis</option><option>de_train</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="lbl"><i class="fa-solid fa-trophy me-1"></i>Mode</label>
+              <select id="mode" class="form-select">
+                <option value="1,2">Wingman (2v2)</option>
+                <option value="0,0">Casual</option>
+                <option value="0,1">Competitive</option>
+                <option value="0,2">Deathmatch</option>
+                <option value="0,3">Custom</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="lbl"><i class="fa-solid fa-user-group me-1"></i>Join Password</label>
+              <input id="svpw" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="lbl"><i class="fa-solid fa-key me-1"></i>RCON Password</label>
+              <input id="rcpw" class="form-control">
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn-poki b-purple" onclick="saveSettings(true)"><i class="fa-solid fa-floppy-disk me-1"></i> Save &amp; Restart</button>
+            <button class="btn-poki b-ghost" onclick="saveSettings(false)"><i class="fa-solid fa-floppy-disk me-1"></i> Save only</button>
+            <button class="btn-poki b-blue" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONSOLE -->
+    <div class="col-lg-6">
+      <div class="pcard h-100">
+        <div class="head head-con"><i class="fa-solid fa-terminal"></i> RCON Console</div>
+        <div class="body">
+          <div class="input-group mb-3">
+            <input id="cmd" class="form-control" placeholder="bot_add  |  mp_restartgame 1" onkeydown="if(event.key==='Enter')runCmd()">
+            <button class="btn-poki b-blue" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+          <pre class="out" id="cout">Ready.</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS / LOGS -->
+    <div class="col-lg-6">
+      <div class="pcard h-100">
+        <div class="head head-log"><i class="fa-solid fa-chart-line"></i> Status &amp; Logs</div>
+        <div class="body">
+          <div class="d-flex gap-2 mb-3">
+            <button class="btn-poki b-ghost" onclick="refresh()"><i class="fa-solid fa-rotate me-1"></i> Status</button>
+            <button class="btn-poki b-ghost" onclick="loadLogs()"><i class="fa-solid fa-scroll me-1"></i> Logs</button>
+          </div>
+          <pre class="out" id="info">…</pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="text-center text-white-50 small mt-4 mb-2">CS2 Control Panel · running on your server</p>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+async function api(path, opts){ return fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{})); }
+
+async function login(){
+  const r = await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); }
+  else { $('#lerr').textContent='Wrong username or password.'; }
+}
+async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
+
+async function refresh(){
+  const r = await api('/api/status');
+  if(r.status===401){ $('#login').classList.remove('hide'); $('#app').classList.add('hide'); return; }
+  const d = await r.json();
+  $('#dot').style.background = d.running ? 'var(--green)' : 'var(--red)';
+  $('#stxt').textContent = d.running ? 'ONLINE' : 'OFFLINE';
+  $('#info').textContent = d.info || '(offline)';
+  const v = d.vars||{};
+  if(v.MAP) $('#map').value = v.MAP;
+  if(v.GAME_TYPE!=null && v.GAME_MODE!=null) $('#mode').value = v.GAME_TYPE+','+v.GAME_MODE;
+  if(v.SV_PW!=null) $('#svpw').value = v.SV_PW;
+  if(v.RCON_PW!=null) $('#rcpw').value = v.RCON_PW;
+  const host = location.hostname;
+  $('#connstr').textContent = 'connect '+host+':'+(v.PORT||'27015')+(v.SV_PW?'; password '+v.SV_PW:'');
+}
+async function ctl(action){
+  const r = await api('/api/control',{method:'POST',body:JSON.stringify({action})});
+  const d = await r.json(); $('#info').textContent = d.out||d.error; setTimeout(refresh,1500);
+}
+async function practice(){ const r=await api('/api/practice',{method:'POST'}); const d=await r.json(); $('#cout').textContent = d.out||d.error; }
+async function saveSettings(restart){
+  const [gt,gm] = $('#mode').value.split(',');
+  const body = { MAP:$('#map').value, GAME_TYPE:gt, GAME_MODE:gm, SV_PW:$('#svpw').value, RCON_PW:$('#rcpw').value, _restart:restart };
+  const r = await api('/api/settings',{method:'POST',body:JSON.stringify(body)});
+  const d = await r.json(); $('#info').textContent = d.out||d.error;
+  if(restart) setTimeout(refresh,2500); else refresh();
+}
+async function liveMap(){
+  const r = await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})});
+  const d = await r.json(); $('#info').textContent = d.out||d.error; setTimeout(refresh,1500);
+}
+async function runCmd(){
+  const cmd=$('#cmd').value; if(!cmd)return;
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd})});
+  const d=await r.json(); $('#cout').textContent = '> '+cmd+'\n'+(d.out||d.error||'(no output)'); $('#cmd').value='';
+}
+async function loadLogs(){ const r=await api('/api/logs'); const d=await r.json(); $('#info').textContent=d.out; }
+
+api('/api/me').then(r=>r.json()).then(d=>{
+  if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); }
+});
+setInterval(()=>{ if(!$('#app').classList.contains('hide')) refresh(); }, 8000);
+</script>
+</body>
+</html>
