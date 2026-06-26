@@ -276,6 +276,7 @@
 const $ = s => document.querySelector(s);
 async function api(p,o){ return fetch(p, Object.assign({headers:{'Content-Type':'application/json'}}, o||{})); }
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let loadedMap = null;   // tracks a map loaded live (workshop / changelevel) until next restart
 
 (()=>{ const ic=['fa-crosshairs','fa-bomb','fa-gun','fa-shield-halved','fa-trophy','fa-skull','fa-fire','fa-bullseye'];
   let h=''; for(let i=0;i<120;i++) h+=`<i class="fa-solid ${ic[i%ic.length]}"></i>`; $('#fap').innerHTML=h; })();
@@ -349,12 +350,13 @@ async function refresh(){
   $('#stStatus').textContent=d.running?'Online':'Offline';
   $('#stIcon').className='stat-ic '+(d.running?'ic-green':'ic-red');
   const curMap=parseMap(d.info);
-  $('#stMap').textContent = curMap || (v.WORKSHOP?('workshop '+v.WORKSHOP):(v.MAP||'—'));
-  $('#stMode').textContent = (v.WORKSHOP && !curMap) ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
+  $('#stMap').textContent = curMap || loadedMap || (v.MAP||'—');
+  $('#stMode').textContent = (loadedMap && loadedMap.indexOf('workshop')===0) ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
   const pl=parsePlayers(d.info);
   $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—';
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
+  loadedMap=null; /* restart/stop reverts to the configured map */
   appendCout('<span class="ln info">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 async function practice(){ const r=await api('/api/practice',{method:'POST'}); const d=await r.json();
   appendCout('<span class="ln ok">[practice] '+esc(d.out||d.error)+'</span>'); }
@@ -371,8 +373,10 @@ function quick(c){ $('#cmd').value=c; runCmd(); }
 async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
   const body={MAP:$('#map').value,GAME_TYPE:gt,GAME_MODE:gm,SV_PW:$('#svpw').value,RCON_PW:$('#rcpw').value,_restart:restart};
   const r=await api('/api/settings',{method:'POST',body:JSON.stringify(body)}); const d=await r.json();
+  if(restart) loadedMap=null; /* reboot loads the configured map */
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); if(restart)setTimeout(()=>{refresh();loadPreview();},2500); else refresh(); }
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
+  loadedMap=$('#map').value; $('#stMap').textContent=loadedMap;
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 
 // ---- workshop map: load LIVE via RCON (server stays up, no boot hang) ----
@@ -384,6 +388,8 @@ async function loadWorkshop(){
   msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Switching to workshop map '+id+' (live)…';
   const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:'host_workshop_map '+id})}); const d=await r.json();
   if(d.ok){
+    loadedMap='workshop '+id;
+    $('#stMap').textContent=loadedMap; $('#stMode').textContent='Custom (Workshop)';
     appendCout('<span class="ln ok">[workshop] host_workshop_map '+esc(id)+'</span>'+(d.out?'<span class="ln">'+esc(d.out)+'</span>':''));
     msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Loading map '+id+' — watch Live Logs, then connect.';
   } else {
