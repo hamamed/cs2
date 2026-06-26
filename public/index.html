@@ -178,6 +178,14 @@
             <button class="btn-soft" onclick="saveSettings(false)"><i class="fa-solid fa-floppy-disk me-1"></i> Save only</button>
             <button class="btn-soft" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
           </div>
+
+          <hr style="border-color:var(--line);margin:1.1rem 0">
+          <label class="lbl"><i class="fa-brands fa-steam me-1"></i>Workshop Map — paste ID or URL, then load (no cooldown, great for practice)</label>
+          <div class="input-group">
+            <input id="ws" class="form-control" placeholder="e.g. 3070253964  or  https://steamcommunity.com/sharedfiles/filedetails/?id=3070253964" onkeydown="if(event.key==='Enter')loadWorkshop()">
+            <button class="btn-accent" onclick="loadWorkshop()"><i class="fa-solid fa-cloud-arrow-down me-1"></i> Load Workshop</button>
+          </div>
+          <div class="hint d-inline-block mt-2" id="wsmsg"><i class="fa-solid fa-circle-info me-1"></i>The server downloads the map and switches to it automatically.</div>
         </div>
       </div>
     </div>
@@ -317,6 +325,20 @@ async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); if(restart)setTimeout(()=>{refresh();loadPreview();},2500); else refresh(); }
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
+
+// ---- workshop map ----
+function extractWsId(s){ const m=(s||'').match(/(\d{6,})/); return m?m[1]:''; }
+async function loadWorkshop(){
+  const id=extractWsId($('#ws').value);
+  const msg=$('#wsmsg');
+  if(!id){ msg.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>Enter a valid Workshop ID or URL.'; return; }
+  msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Loading workshop map '+id+'… (download may take a moment)';
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:'host_workshop_map '+id})}); const d=await r.json();
+  appendCout('<span class="ln ok">[workshop] host_workshop_map '+esc(id)+'</span>');
+  if(d.out) appendCout('<span class="ln">'+esc(d.out)+'</span>');
+  msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Sent. Watch Live Logs for download progress.';
+  setTimeout(()=>{refresh();loadPreview();},2500);
+}
 
 // ---- boot ----
 api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); }});
