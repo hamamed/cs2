@@ -167,20 +167,23 @@ app.post('/api/practice', requireAuth, async (req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// Quick live map change (no restart) — works within compatible modes
+// Quick live map change (no restart) — works within compatible modes; clears any workshop map
 app.post('/api/map', requireAuth, async (req, res) => {
   const map = (req.body && req.body.map || '').replace(/[^a-zA-Z0-9_]/g, '');
   if (!map) return res.status(400).json({ error: 'bad map' });
-  writeVars({ MAP: map });
+  writeVars({ MAP: map, WORKSHOP: '' });
   try { res.json({ ok: true, out: await rconExec('changelevel ' + map) }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// Save settings (map/mode/passwords) and restart to apply
+// Save settings (map/mode/passwords/workshop) and optionally restart to apply
 app.post('/api/settings', requireAuth, async (req, res) => {
   const body = req.body || {};
   const updates = {};
   for (const k of EDITABLE_KEYS) if (k in body && body[k] !== '') updates[k] = String(body[k]).replace(/"/g, '');
+  // Workshop: explicit ID sets it; choosing a normal map clears it
+  if ('WORKSHOP' in body) updates.WORKSHOP = String(body.WORKSHOP).replace(/[^0-9]/g, '');
+  else if ('MAP' in body) updates.WORKSHOP = '';
   writeVars(updates);
   let out = 'Saved.';
   if (body._restart) { const r = await sh(`systemctl restart ${SERVICE}`); out += r.ok ? ' Restarting…' : ' (restart failed: ' + r.out + ')'; }

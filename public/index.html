@@ -324,6 +324,12 @@ function parsePlayers(info){
   if(m)return m[1]+'/'+m[2]+' players';
   return null;
 }
+function parseMap(info){
+  if(!info)return null;
+  const m=info.match(/map\s*[:=]\s*([^\s,]+)/i);
+  if(!m)return null;
+  let mp=m[1]; if(mp.includes('/'))mp=mp.split('/').pop(); return mp;
+}
 async function refresh(){
   const r=await api('/api/status'); if(r.status===401){ $('#login').classList.remove('hide'); $('#app').classList.add('hide'); return; }
   const d=await r.json();
@@ -338,8 +344,9 @@ async function refresh(){
   // status tiles
   $('#stStatus').textContent=d.running?'Online':'Offline';
   $('#stIcon').className='stat-ic '+(d.running?'ic-green':'ic-red');
-  $('#stMap').textContent=v.MAP||'—';
-  $('#stMode').textContent=modeName(v.GAME_TYPE,v.GAME_MODE);
+  const curMap=parseMap(d.info);
+  $('#stMap').textContent = curMap || (v.WORKSHOP?('workshop '+v.WORKSHOP):(v.MAP||'—'));
+  $('#stMode').textContent = (v.WORKSHOP && !curMap) ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
   const pl=parsePlayers(d.info);
   $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—';
 }
@@ -364,18 +371,18 @@ async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 
-// ---- workshop map ----
+// ---- workshop map (saves + restarts directly onto the map) ----
 function extractWsId(s){ const m=(s||'').match(/(\d{6,})/); return m?m[1]:''; }
 async function loadWorkshop(){
   const id=extractWsId($('#ws').value);
   const msg=$('#wsmsg');
   if(!id){ msg.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>Enter a valid Workshop ID or URL.'; return; }
-  msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Loading workshop map '+id+'… (download may take a moment)';
-  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:'host_workshop_map '+id})}); const d=await r.json();
-  appendCout('<span class="ln ok">[workshop] host_workshop_map '+esc(id)+'</span>');
-  if(d.out) appendCout('<span class="ln">'+esc(d.out)+'</span>');
-  msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Sent. Watch Live Logs for download progress.';
-  setTimeout(()=>{refresh();loadPreview();},2500);
+  msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Restarting server on workshop map '+id+'… (first load may take a minute to download)';
+  const r=await api('/api/settings',{method:'POST',body:JSON.stringify({WORKSHOP:id,_restart:true})}); const d=await r.json();
+  appendCout('<span class="ln ok">[workshop] booting on '+esc(id)+' — '+esc(d.out||'')+'</span>');
+  msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Restarting on workshop map '+id+'. Watch Live Logs / status tile.';
+  // poll a few times while it downloads + boots
+  let n=0; const t=setInterval(()=>{ refresh(); loadPreview(); if(++n>6) clearInterval(t); }, 4000);
 }
 
 // ---- boot ----
