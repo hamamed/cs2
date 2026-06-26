@@ -350,8 +350,10 @@ async function refresh(){
   $('#stStatus').textContent=d.running?'Online':'Offline';
   $('#stIcon').className='stat-ic '+(d.running?'ic-green':'ic-red');
   const curMap=parseMap(d.info);
-  $('#stMap').textContent = curMap || loadedMap || (v.MAP||'—');
-  $('#stMode').textContent = (loadedMap && loadedMap.indexOf('workshop')===0) ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
+  const shownMap = curMap || d.liveMap || loadedMap || (v.MAP||'—');
+  $('#stMap').textContent = shownMap;
+  const isWs = (d.liveMap||loadedMap||'').indexOf('workshop')===0;
+  $('#stMode').textContent = isWs ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
   const pl=parsePlayers(d.info);
   $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—';
 }

@@ -20,6 +20,10 @@ const RCON_HOSTS = (process.env.RCON_HOST || '127.0.0.1,127.0.1.1,localhost')
 // Keys the panel is allowed to edit in server-vars.conf
 const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'PORT', 'GSLT'];
 
+// Tracks a map loaded live (workshop / changelevel) since the last (re)start,
+// so the panel shows the real current map even after a browser refresh.
+let liveMap = null;
+
 // ---------- Helpers: read/write the shell vars file ----------
 function readVars() {
   const out = {};
@@ -157,7 +161,8 @@ app.get('/api/status', requireAuth, async (req, res) => {
   if (running) {
     try { info = await rconExec('status'); } catch (e) { info = '(server up, RCON not ready: ' + e.message + ')'; }
   }
-  res.json({ running, state: active.out.trim(), vars: readVars(), info });
+  if (!running) liveMap = null;
+  res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap });
 });
 
 // Start / stop / restart
@@ -165,6 +170,7 @@ app.post('/api/control', requireAuth, async (req, res) => {
   const action = (req.body && req.body.action) || '';
   if (!['start', 'stop', 'restart'].includes(action)) return res.status(400).json({ error: 'bad action' });
   const r = await sh(`systemctl ${action} ${SERVICE}`);
+  liveMap = null; // (re)start/stop reverts to the configured map
   res.json({ ok: r.ok, out: r.out || `${action} sent` });
 });
 
@@ -172,8 +178,15 @@ app.post('/api/control', requireAuth, async (req, res) => {
 app.post('/api/rcon', requireAuth, async (req, res) => {
   const cmd = (req.body && req.body.cmd) || '';
   if (!cmd.trim()) return res.status(400).json({ error: 'empty command' });
-  try { res.json({ ok: true, out: await rconExec(cmd) }); }
-  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  try {
+    const out = await rconExec(cmd);
+    // track map-changing commands so the Current Map tile stays accurate
+    const mws = cmd.match(/^\s*host_workshop_map\s+(\d+)/i);
+    const mmap = cmd.match(/^\s*(?:changelevel|map)\s+(\S+)/i);
+    if (mws) liveMap = 'workshop ' + mws[1];
+    else if (mmap) liveMap = mmap[1];
+    res.json({ ok: true, out });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // One-click practice toggle
@@ -187,6 +200,7 @@ app.post('/api/map', requireAuth, async (req, res) => {
   const map = (req.body && req.body.map || '').replace(/[^a-zA-Z0-9_]/g, '');
   if (!map) return res.status(400).json({ error: 'bad map' });
   writeVars({ MAP: map, WORKSHOP: '' });
+  liveMap = map;
   try { res.json({ ok: true, out: await rconExec('changelevel ' + map) }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
@@ -201,7 +215,7 @@ app.post('/api/settings', requireAuth, async (req, res) => {
   else if ('MAP' in body) updates.WORKSHOP = '';
   writeVars(updates);
   let out = 'Saved.';
-  if (body._restart) { const r = await sh(`systemctl restart ${SERVICE}`); out += r.ok ? ' Restarting…' : ' (restart failed: ' + r.out + ')'; }
+  if (body._restart) { liveMap = null; const r = await sh(`systemctl restart ${SERVICE}`); out += r.ok ? ' Restarting…' : ' (restart failed: ' + r.out + ')'; }
   res.json({ ok: true, out });
 });
 
