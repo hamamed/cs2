@@ -6,6 +6,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
+const https = require('https');
 
 // ---------- Config (override via environment in the systemd unit) ----------
 const PANEL_USER = process.env.PANEL_USER || 'admin';
@@ -23,6 +24,46 @@ const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'POR
 // Tracks a map loaded live (workshop / changelevel) since the last (re)start,
 // so the panel shows the real current map even after a browser refresh.
 let liveMap = null;
+
+// Saved-workshop-maps library (persisted on disk)
+const SAVED_FILE = process.env.SAVED_FILE || path.join(__dirname, 'saved-maps.json');
+function readSaved() { try { return JSON.parse(fs.readFileSync(SAVED_FILE, 'utf8')); } catch (e) { return []; } }
+function writeSaved(arr) { try { fs.writeFileSync(SAVED_FILE, JSON.stringify(arr, null, 2)); } catch (e) {} }
+
+// Fetch a workshop item's title + preview image from the public Steam API (no key needed)
+function steamWorkshopInfo(id) {
+  return new Promise((resolve, reject) => {
+    id = String(id).replace(/[^0-9]/g, '');
+    if (!id) return reject(new Error('bad id'));
+    const data = 'itemcount=1&publishedfileids%5B0%5D=' + id;
+    const req = https.request({
+      hostname: 'api.steampowered.com',
+      path: '/ISteamRemoteStorage/GetPublishedFileDetails/v1/',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(data) },
+      timeout: 8000,
+    }, (res) => {
+      let body = '';
+      res.on('data', d => body += d);
+      res.on('end', () => {
+        try {
+          const f = JSON.parse(body).response.publishedfiledetails[0];
+          if (!f || f.result !== 1) return reject(new Error('Workshop item not found'));
+          resolve({
+            id,
+            title: f.title || ('Workshop ' + id),
+            preview: f.preview_url || '',
+            url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=' + id,
+          });
+        } catch (e) { reject(new Error('Steam API parse error')); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Steam API timeout')); });
+    req.write(data);
+    req.end();
+  });
+}
 
 // ---------- Helpers: read/write the shell vars file ----------
 function readVars() {
@@ -217,6 +258,32 @@ app.post('/api/settings', requireAuth, async (req, res) => {
   let out = 'Saved.';
   if (body._restart) { liveMap = null; const r = await sh(`systemctl restart ${SERVICE}`); out += r.ok ? ' Restarting…' : ' (restart failed: ' + r.out + ')'; }
   res.json({ ok: true, out });
+});
+
+// Workshop item info (title + preview image) from Steam
+app.get('/api/wsinfo', requireAuth, async (req, res) => {
+  try { res.json({ ok: true, info: await steamWorkshopInfo(req.query.id || '') }); }
+  catch (e) { res.status(404).json({ ok: false, error: e.message }); }
+});
+
+// Saved-maps library
+app.get('/api/saved', requireAuth, (req, res) => res.json({ ok: true, maps: readSaved() }));
+
+app.post('/api/saved', requireAuth, async (req, res) => {
+  const id = String((req.body && req.body.id) || '').replace(/[^0-9]/g, '');
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  let info;
+  try { info = await steamWorkshopInfo(id); } catch (e) { return res.status(404).json({ ok: false, error: e.message }); }
+  const maps = readSaved();
+  if (!maps.find(m => m.id === id)) { maps.push(info); writeSaved(maps); }
+  res.json({ ok: true, maps });
+});
+
+app.post('/api/saved/remove', requireAuth, (req, res) => {
+  const id = String((req.body && req.body.id) || '').replace(/[^0-9]/g, '');
+  const maps = readSaved().filter(m => m.id !== id);
+  writeSaved(maps);
+  res.json({ ok: true, maps });
 });
 
 // Recent server logs
