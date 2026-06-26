@@ -80,6 +80,8 @@
 const $=s=>document.querySelector(s);
 const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const MODES={'0,0':'Casual','0,1':'Competitive','0,2':'Wingman','1,2':'Deathmatch','1,0':'Arms Race','1,1':'Demolition'};
+const OFFICIAL_MAPS=['de_ancient','de_anubis','de_inferno','de_mirage','de_nuke','de_overpass','de_vertigo','de_dust2','de_cache','de_train'];
+function mapImg(name){ name=(name||'').toLowerCase().replace(/[^a-z0-9_]/g,''); return OFFICIAL_MAPS.includes(name)?'https://cdn.jsdelivr.net/gh/ghostcap-gaming/cs2-map-images@main/cs2/'+name+'.png':''; }
 let connStr='';
 
 async function load(){
@@ -95,9 +97,16 @@ async function load(){
     hero.innerHTML='<img src="'+esc(d.mapInfo.preview)+'" alt=""><div class="ov"><div class="mapname">'+esc(d.mapInfo.title)+'</div><div class="mapsub"><i class="fa-brands fa-steam me-1"></i>Workshop map — click to view on Steam</div></div>';
     link.href=d.mapInfo.url;
   } else {
-    hero.className='hero-empty';
-    hero.innerHTML='<div><i class="fa-solid fa-map me-2"></i>'+esc(d.mapName||'—')+'</div>';
-    link.removeAttribute('href');
+    const img=mapImg(d.mapName);
+    if(img){
+      hero.className='hero';
+      hero.innerHTML='<img src="'+img+'" alt=""><div class="ov"><div class="mapname">'+esc(d.mapName)+'</div><div class="mapsub">Official map</div></div>';
+      link.removeAttribute('href');
+    } else {
+      hero.className='hero-empty';
+      hero.innerHTML='<div><i class="fa-solid fa-map me-2"></i>'+esc(d.mapName||'—')+'</div>';
+      link.removeAttribute('href');
+    }
   }
 
   $('#vMode').textContent = d.isWorkshop ? 'Custom' : (MODES[d.game_type+','+d.game_mode]||'—');

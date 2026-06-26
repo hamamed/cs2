@@ -535,17 +535,23 @@ async function loadWorkshopId(id){
 }
 function loadWorkshop(){ const id=extractWsId($('#ws').value); if(!id){ $('#wsmsg').innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>Enter a valid Workshop ID or URL.'; return;} loadWorkshopId(id); }
 
-// paint the Current Map tile with a workshop thumbnail + Steam link
+// official map images (jsDelivr CDN)
+const OFFICIAL_MAPS=['de_ancient','de_anubis','de_inferno','de_mirage','de_nuke','de_overpass','de_vertigo','de_dust2','de_cache','de_train'];
+function mapImg(name){ name=(name||'').toLowerCase().replace(/[^a-z0-9_]/g,''); return OFFICIAL_MAPS.includes(name)?'https://cdn.jsdelivr.net/gh/ghostcap-gaming/cs2-map-images@main/cs2/'+name+'.png':''; }
+function setIcImage(ic, src, href){
+  ic.className='stat-ic thumb'; if(href){ic.href=href; ic.target='_blank';} else ic.removeAttribute('href');
+  ic.innerHTML=''; const img=document.createElement('img'); img.alt='';
+  img.onerror=()=>{ ic.className='stat-ic ic-blue'; ic.removeAttribute('href'); ic.innerHTML='<i class="fa-solid fa-map"></i>'; };
+  img.src=src; ic.appendChild(img);
+}
+// paint the Current Map tile with an image (workshop or official) + link
 function paintCurMap(info, fallbackText){
   const ic=$('#stMapIc');
-  if(info && info.preview){
-    ic.className='stat-ic thumb'; ic.href=info.url; ic.target='_blank';
-    ic.innerHTML='<img src="'+info.preview+'" alt="">';
-    $('#stMap').textContent=info.title;
-  } else {
-    ic.className='stat-ic ic-blue'; ic.removeAttribute('href'); ic.innerHTML='<i class="fa-solid fa-map"></i>';
-    if(fallbackText) $('#stMap').textContent=fallbackText;
-  }
+  if(info && info.preview){ setIcImage(ic, info.preview, info.url); $('#stMap').textContent=info.title; return; }
+  const img=mapImg(fallbackText);
+  if(img){ setIcImage(ic, img, null); }
+  else { ic.className='stat-ic ic-blue'; ic.removeAttribute('href'); ic.innerHTML='<i class="fa-solid fa-map"></i>'; }
+  if(fallbackText) $('#stMap').textContent=fallbackText;
 }
 
 // ---- saved-maps library ----
