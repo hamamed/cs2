@@ -219,6 +219,14 @@
             <button class="btn-soft" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
           </div>
 
+          <div class="form-check form-switch mt-3 d-flex align-items-center gap-2" style="padding-left:2.6em">
+            <input class="form-check-input" type="checkbox" id="cooldownSwitch" checked onchange="toggleCooldown()" style="cursor:pointer">
+            <label class="form-check-label" for="cooldownSwitch" style="font-weight:800;cursor:pointer">
+              <i class="fa-solid fa-clock-rotate-left me-1" style="color:var(--gold)"></i>Allow friends with a competitive cooldown to join
+            </label>
+          </div>
+          <div class="hint d-inline-block mt-1" id="cdmsg"><i class="fa-solid fa-circle-info me-1"></i>ON = cooldown players can join (Casual/Custom/Workshop). Ranked modes are still blocked by Valve.</div>
+
           <hr style="border-color:var(--line);margin:1.1rem 0">
           <label class="lbl"><i class="fa-brands fa-steam me-1"></i>Workshop Map — paste ID or URL (no cooldown, great for practice)</label>
           <div class="input-group">
@@ -399,6 +407,13 @@ async function runCmd(){ const cmd=$('#cmd').value.trim(); if(!cmd)return; $('#c
   const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd})}); const d=await r.json();
   appendCout('<span class="ln">'+(esc(d.out)||'<span class="dim">(no output)</span>')+'</span>'); }
 function quick(c){ $('#cmd').value=c; runCmd(); }
+async function toggleCooldown(){
+  const allow=$('#cooldownSwitch').checked; const val=allow?0:1; const msg=$('#cdmsg');
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:'sv_kick_players_with_cooldown '+val})}); const d=await r.json();
+  if(d.ok){ msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>'+(allow?'Cooldown players are now ALLOWED to join.':'Cooldown players will be KICKED.');
+    appendCout('<span class="ln ok">sv_kick_players_with_cooldown '+val+'</span>'); }
+  else { msg.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>'+esc(d.error||'Failed — is the server running?'); $('#cooldownSwitch').checked=!allow; }
+}
 // weapon give buttons (rendered from this table)
 const WEAPONS={
   Rifles:[['AK-47','ak47'],['M4A4','m4a1'],['M4A1-S','m4a1_silencer'],['AUG','aug'],['SG 553','sg556'],['Galil','galilar'],['FAMAS','famas']],

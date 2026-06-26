@@ -24,6 +24,13 @@ const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'POR
 // Tracks a map loaded live (workshop / changelevel) since the last (re)start,
 // so the panel shows the real current map even after a browser refresh.
 let liveMap = null;
+// Detect when the cs2 service has (re)started by ANY means (panel, PuTTY, crash,
+// auto-restart) by watching its start timestamp; reset liveMap so the tile matches reality.
+let lastStartStamp = null;
+async function detectRestart() {
+  const st = (await sh(`systemctl show -p ActiveEnterTimestampMonotonic --value ${SERVICE}`)).out.trim();
+  if (st && st !== '0') { if (lastStartStamp && st !== lastStartStamp) liveMap = null; lastStartStamp = st; }
+}
 
 // Saved-workshop-maps library (persisted on disk)
 const SAVED_FILE = process.env.SAVED_FILE || path.join(__dirname, 'saved-maps.json');
@@ -198,11 +205,12 @@ app.get('/api/me', (req, res) => res.json({ authed: !!(req.session && req.sessio
 app.get('/api/status', requireAuth, async (req, res) => {
   const active = await sh(`systemctl is-active ${SERVICE}`);
   const running = active.out.trim() === 'active';
+  if (!running) { liveMap = null; lastStartStamp = null; }
+  else await detectRestart();
   let info = '';
   if (running) {
     try { info = await rconExec('status'); } catch (e) { info = '(server up, RCON not ready: ' + e.message + ')'; }
   }
-  if (!running) liveMap = null;
   res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap });
 });
 
@@ -307,6 +315,7 @@ function parsePlayersServer(info) {
 app.get('/api/public', async (req, res) => {
   const active = await sh(`systemctl is-active ${SERVICE}`);
   const running = active.out.trim() === 'active';
+  if (!running) { liveMap = null; lastStartStamp = null; } else await detectRestart();
   const v = readVars();
   const isWs = !!(liveMap && liveMap.indexOf('workshop') === 0);
   const wsId = isWs ? liveMap.replace(/\D/g, '') : '';
