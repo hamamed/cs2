@@ -273,7 +273,8 @@
           </div>
           <div class="lbl mb-1"><i class="fa-solid fa-bullseye me-1"></i>Practice setup</div>
           <div class="d-flex flex-wrap gap-1 mb-2">
-            <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="practiceSetup()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>1-Click Practice</button>
+            <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="practiceSetup()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Practice ON</button>
+            <button class="btn-c c-red py-1 px-2" style="font-size:.78rem" onclick="practiceOff()"><i class="fa-solid fa-power-off me-1"></i>Practice OFF</button>
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_cheats 1')">Cheats On</button>
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_infinite_ammo 1')">Infinite Ammo</button>
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('god')">God</button>
@@ -489,6 +490,15 @@ async function practiceSetup(){
   appendCout('<span class="ln info">&gt; 1-Click Practice setup</span>');
   const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:cmds})}); const d=await r.json();
   appendCout('<span class="ln ok">Practice mode enabled: cheats, infinite ammo, buy anywhere, full nades, instant respawn.</span>'+(d.out?'<span class="ln">'+esc(d.out)+'</span>':''));
+}
+async function practiceOff(){
+  const cmds='sv_cheats 0; sv_infinite_ammo 0; ammo_grenade_limit_total 4; mp_buy_anywhere 0; mp_buytime 20; '+
+    'mp_maxmoney 16000; mp_startmoney 800; mp_freezetime 15; mp_roundtime 1.92; mp_roundtime_defuse 1.92; '+
+    'sv_grenade_trajectory_prac_pipreview 0; sv_grenade_trajectory_time_spectator 0; sv_showimpacts 0; '+
+    'mp_warmuptime 15; mp_restartgame 1';
+  appendCout('<span class="ln info">&gt; Practice OFF</span>');
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:cmds})}); const d=await r.json();
+  appendCout('<span class="ln ok">Practice mode disabled — back to normal competitive settings.</span>'+(d.out?'<span class="ln">'+esc(d.out)+'</span>':''));
 }
 
 // ---- settings ----
