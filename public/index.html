@@ -43,6 +43,7 @@
   .ic-green{background:#e4f8ee;color:var(--green)} .ic-blue{background:var(--accent-soft);color:var(--accent)}
   .ic-teal{background:#e4faf9;color:var(--teal)} .ic-gold{background:#fff3d6;color:var(--gold)}
   [data-bs-theme="dark"] .ic-green{background:#10301f}[data-bs-theme="dark"] .ic-teal{background:#0e2e2c}[data-bs-theme="dark"] .ic-gold{background:#332a10}
+  .hint{font-size:.72rem;font-weight:800;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:.25rem .7rem}
 
   .btn-accent{background:var(--accent);border:none;color:#fff;font-weight:800;border-radius:12px;padding:.6rem 1.1rem;
     box-shadow:0 6px 16px rgba(31,131,255,.28);transition:transform .08s,box-shadow .2s,background .2s}
@@ -52,7 +53,6 @@
   .btn-c{border:none;color:#fff;font-weight:800;border-radius:12px;padding:.6rem 1.1rem;transition:transform .08s}
   .btn-c:hover{transform:translateY(-1px);color:#fff} .btn-c:active{transform:translateY(0)}
   .c-green{background:var(--green)} .c-red{background:var(--red)} .c-gold{background:var(--gold);color:#5b3f00} .c-gold:hover{color:#5b3f00}
-  .c-dark{background:#1f2937} .c-dark:hover{color:#fff}
 
   .form-control,.form-select{background:var(--surface);border:1px solid #dfe4ec;color:var(--text);border-radius:12px;font-weight:600;padding:.6rem .8rem}
   [data-bs-theme="dark"] .form-control,[data-bs-theme="dark"] .form-select{border-color:#33414f}
@@ -65,7 +65,6 @@
   .dot{width:10px;height:10px;border-radius:50%;background:currentColor;animation:pulse 1.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}50%{box-shadow:0 0 0 5px transparent;opacity:.55}}
 
-  /* click-to-copy connect chip */
   .conn{font-family:"JetBrains Mono",monospace;background:var(--accent-soft);color:var(--accent-dark);padding:.55rem .9rem;border-radius:12px;
     font-size:.85rem;font-weight:700;cursor:pointer;border:1px dashed transparent;transition:.12s;display:inline-flex;align-items:center;gap:8px}
   .conn:hover{border-color:var(--accent)} .conn.copied{background:#e4f8ee;color:var(--green)}
@@ -73,6 +72,7 @@
 
   /* ===== TERMINAL (PuTTY style) ===== */
   .term-wrap{background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #000}
+  .term-wrap.clickable{cursor:pointer;transition:.12s} .term-wrap.clickable:hover{box-shadow:0 0 0 2px var(--accent)}
   .term-bar{display:flex;align-items:center;gap:8px;background:#1b1b1b;padding:9px 14px}
   .term-dots{display:flex;gap:6px;margin-right:6px}
   .term-dots span{width:11px;height:11px;border-radius:50%}
@@ -87,11 +87,8 @@
   .term .ln{display:block}
   .term .err{color:#ff6b6b}.term .ok{color:#3ad07a}.term .warn{color:#ffcf5c}.term .info{color:#69b7ff}.term .dim{color:#7a7a7a}
   .term::-webkit-scrollbar{width:10px}.term::-webkit-scrollbar-thumb{background:#2c2c2c;border-radius:5px}
-
-  /* big modal terminal */
   .modal-term .modal-content{border:none;border-radius:16px;overflow:hidden;background:#0c0c0c}
   .modal-term .term{height:72vh}
-  #consoleModal .term{height:48vh}
 
   #login{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(700px 380px at 85% -5%,rgba(31,131,255,.10),transparent 60%),
@@ -150,12 +147,6 @@
             <button class="btn-c c-red" onclick="ctl('stop')"><i class="fa-solid fa-stop me-1"></i> Stop</button>
             <button class="btn-accent" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
             <button class="btn-c c-gold" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
-          </div>
-          <hr style="border-color:var(--line)">
-          <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="lbl mb-0 me-1">Quick tools:</span>
-            <button class="btn-c c-dark" data-bs-toggle="modal" data-bs-target="#logsModal" onclick="openLogs()"><i class="fa-solid fa-scroll me-1"></i> Live Logs</button>
-            <button class="btn-c c-dark" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-1"></i> RCON Console</button>
             <span class="conn ms-auto" id="connstr" onclick="copyConn()" title="Click to copy"><i class="fa-solid fa-copy"></i><span id="conntext">connect …</span></span>
           </div>
         </div>
@@ -191,14 +182,35 @@
       </div>
     </div>
 
-    <!-- STATUS -->
-    <div class="col-12">
-      <div class="wc-card">
-        <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-chart-line"></i></span><h6>Server Status</h6>
-          <button class="btn-soft ms-auto py-1 px-3" onclick="refresh()"><i class="fa-solid fa-rotate"></i></button>
+    <!-- TWO BOXES: LOGS + CONSOLE -->
+    <div class="col-lg-6">
+      <div class="wc-card h-100">
+        <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-scroll"></i></span><h6>Live Logs</h6>
+          <span class="hint ms-auto"><i class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>click to expand</span></div>
+        <div class="p-3">
+          <div class="term-wrap clickable" data-bs-toggle="modal" data-bs-target="#logsModal" onclick="openLogs()" title="Open full logs">
+            <div class="term" id="logpreview" style="height:240px"><span class="ln dim">Loading latest logs…</span></div>
+          </div>
         </div>
-        <div class="p-3 p-md-4">
-          <div class="term-wrap"><div class="term" id="info" style="max-height:300px">…</div></div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="wc-card h-100">
+        <div class="card-head"><span class="head-icon ic-teal"><i class="fa-solid fa-terminal"></i></span><h6>RCON Console</h6></div>
+        <div class="p-3">
+          <div class="term-wrap mb-2"><div class="term" id="cout" style="height:155px"><span class="ln dim">Ready. Type a command below.</span></div></div>
+          <div class="input-group mb-2">
+            <input id="cmd" class="form-control" placeholder="bot_add | mp_restartgame 1 | changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
+            <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+          <div class="d-flex flex-wrap gap-1">
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_restartgame 1')">Restart Round</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add')">Add Bot</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_kick')">Kick Bots</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_warmup_end')">End Warmup</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('status')">Status</button>
+          </div>
         </div>
       </div>
     </div>
@@ -208,7 +220,7 @@
 </div>
 </div>
 
-<!-- ===== LIVE LOGS MODAL ===== -->
+<!-- ===== LIVE LOGS MODAL (all logs) ===== -->
 <div class="modal fade modal-term" id="logsModal" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
@@ -226,42 +238,12 @@
   </div>
 </div>
 
-<!-- ===== RCON CONSOLE MODAL ===== -->
-<div class="modal fade modal-term" id="consoleModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="term-bar">
-        <span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
-        <span class="term-title">rcon@cs2</span>
-        <span class="spacer"></span>
-        <button class="term-btn" onclick="document.getElementById('cout').innerHTML=''">Clear</button>
-        <button class="term-btn" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i> Close</button>
-      </div>
-      <div class="term" id="cout"><span class="ln dim">Ready. Type a command below.</span></div>
-      <div style="background:#1b1b1b;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
-        <div class="input-group" style="flex:1;min-width:240px">
-          <input id="cmd" class="form-control" placeholder="bot_add | mp_restartgame 1 | changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
-          <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
-        </div>
-      </div>
-      <div style="background:#1b1b1b;padding:0 14px 12px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="term-btn" onclick="quick('mp_restartgame 1')">Restart Round</button>
-        <button class="term-btn" onclick="quick('bot_add')">Add Bot</button>
-        <button class="term-btn" onclick="quick('bot_kick')">Kick Bots</button>
-        <button class="term-btn" onclick="quick('mp_warmup_end')">End Warmup</button>
-        <button class="term-btn" onclick="quick('status')">Status</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 async function api(p,o){ return fetch(p, Object.assign({headers:{'Content-Type':'application/json'}}, o||{})); }
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-// faint background pattern
 (()=>{ const ic=['fa-crosshairs','fa-bomb','fa-gun','fa-shield-halved','fa-trophy','fa-skull','fa-fire','fa-bullseye'];
   let h=''; for(let i=0;i<120;i++) h+=`<i class="fa-solid ${ic[i%ic.length]}"></i>`; $('#fap').innerHTML=h; })();
 
@@ -269,36 +251,37 @@ function toggleTheme(){ const h=document.documentElement; const t=h.getAttribute
   h.setAttribute('data-bs-theme',t); try{localStorage.setItem('cs2theme',t)}catch(e){} }
 try{const t=localStorage.getItem('cs2theme'); if(t)document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}
 
-// terminal rendering
 function classify(line){ const l=line.toLowerCase();
   if(/fail|error|fatal|denied|refused|segfault|kicked/.test(l)) return 'err';
   if(/\bok\b|success|activated|secure mode|started|logged on|connected/.test(l)) return 'ok';
   if(/warn|missing|could not|unable|long frame/.test(l)) return 'warn';
   if(/^\w{3}\s+\d/i.test(line)) return 'info';
   return ''; }
-function renderTerm(el,text,foll){ const lines=(text||'').split(/\r?\n/);
-  el.innerHTML = lines.map(l=>`<span class="ln ${classify(l)}">${esc(l)||'&nbsp;'}</span>`).join('');
-  if(foll) el.scrollTop=el.scrollHeight; }
+function renderTerm(el,text,foll,tail){ let lines=(text||'').split(/\r?\n/);
+  if(tail){ lines=lines.filter(l=>l.trim()!==''); lines=lines.slice(-tail); }
+  el.innerHTML=lines.map(l=>`<span class="ln ${classify(l)}">${esc(l)||'&nbsp;'}</span>`).join('');
+  if(foll!==false) el.scrollTop=el.scrollHeight; }
 
-// ---- live logs modal ----
+// ---- logs: preview box + full modal ----
 let logTimer=null, follow=true;
 function openLogs(){ loadLogs(); startLogStream(); }
 async function loadLogs(){ const r=await api('/api/logs'); const d=await r.json(); renderTerm($('#logterm'), d.out||'(no logs)', follow); }
+async function loadPreview(){ const r=await api('/api/logs'); const d=await r.json(); renderTerm($('#logpreview'), d.out||'(no logs yet)', true, 60); }
 function startLogStream(){ stopLogStream(); logTimer=setInterval(loadLogs,3000); }
 function stopLogStream(){ if(logTimer){clearInterval(logTimer); logTimer=null;} }
 function toggleFollow(){ follow=!follow; $('#followBtn').classList.toggle('on',follow); if(follow)$('#logterm').scrollTop=$('#logterm').scrollHeight; }
 document.addEventListener('DOMContentLoaded',()=>{ const m=$('#logsModal'); if(m) m.addEventListener('hidden.bs.modal',stopLogStream); });
 
-// ---- copy connect string ----
+// ---- copy connect ----
 function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr');
-  navigator.clipboard.writeText(txt).then(()=>{ el.classList.add('copied');
-    const old=$('#conntext').textContent; $('#conntext').textContent='Copied!';
-    setTimeout(()=>{ el.classList.remove('copied'); $('#conntext').textContent=old; },1200);
-  }).catch(()=>{ /* fallback */ const t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }); }
+  const done=()=>{ el.classList.add('copied'); const old=$('#conntext').textContent; $('#conntext').textContent='Copied!';
+    setTimeout(()=>{ el.classList.remove('copied'); $('#conntext').textContent=old; },1200); };
+  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
+  function fallback(){ const t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select(); try{document.execCommand('copy')}catch(e){} t.remove(); done(); } }
 
 // ---- auth ----
 async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
-  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); } else $('#lerr').textContent='Wrong username or password.'; }
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); } else $('#lerr').textContent='Wrong username or password.'; }
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
@@ -307,7 +290,6 @@ async function refresh(){
   const d=await r.json();
   $('#statusPill').className='status-pill '+(d.running?'pill-on':'pill-off');
   $('#stxt').textContent=d.running?'ONLINE':'OFFLINE';
-  renderTerm($('#info'), d.info||'(server offline)', false);
   const v=d.vars||{};
   if(v.MAP)$('#map').value=v.MAP;
   if(v.GAME_TYPE!=null&&v.GAME_MODE!=null)$('#mode').value=v.GAME_TYPE+','+v.GAME_MODE;
@@ -316,9 +298,9 @@ async function refresh(){
   $('#conntext').textContent='connect '+location.hostname+':'+(v.PORT||'27015')+(v.SV_PW?'; password '+v.SV_PW:'');
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
-  renderTerm($('#info'), d.out||d.error, false); setTimeout(refresh,1500); }
+  appendCout('<span class="ln info">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 async function practice(){ const r=await api('/api/practice',{method:'POST'}); const d=await r.json();
-  new bootstrap.Modal($('#consoleModal')).show(); $('#cout').innerHTML='<span class="ln ok">'+esc(d.out||d.error)+'</span>'; }
+  appendCout('<span class="ln ok">[practice] '+esc(d.out||d.error)+'</span>'); }
 
 // ---- console ----
 function appendCout(html){ const t=$('#cout'); if(t.querySelector('.dim'))t.innerHTML=''; t.innerHTML+=html; t.scrollTop=t.scrollHeight; }
@@ -332,13 +314,13 @@ function quick(c){ $('#cmd').value=c; runCmd(); }
 async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
   const body={MAP:$('#map').value,GAME_TYPE:gt,GAME_MODE:gm,SV_PW:$('#svpw').value,RCON_PW:$('#rcpw').value,_restart:restart};
   const r=await api('/api/settings',{method:'POST',body:JSON.stringify(body)}); const d=await r.json();
-  renderTerm($('#info'), d.out||d.error, false); if(restart)setTimeout(refresh,2500); else refresh(); }
+  appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); if(restart)setTimeout(()=>{refresh();loadPreview();},2500); else refresh(); }
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
-  renderTerm($('#info'), d.out||d.error, false); setTimeout(refresh,1500); }
+  appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 
 // ---- boot ----
-api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); }});
-setInterval(()=>{ if(!$('#app').classList.contains('hide')) refresh(); }, 8000);
+api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); }});
+setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); } }, 8000);
 </script>
 </body>
 </html>
