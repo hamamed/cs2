@@ -254,6 +254,24 @@
             <input id="cmd" class="form-control" placeholder="bot_add | mp_restartgame 1 | changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
             <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
           </div>
+          <div class="lbl mb-1"><i class="fa-solid fa-bullseye me-1"></i>Practice setup</div>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="practiceSetup()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>1-Click Practice</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_cheats 1')">Cheats On</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_infinite_ammo 1')">Infinite Ammo</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('god')">God</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('noclip')">Noclip</button>
+          </div>
+          <div class="lbl mb-1"><i class="fa-solid fa-gun me-1"></i>Give weapon</div>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_ak47')">AK-47</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_m4a1_silencer')">M4</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_awp')">AWP</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_deagle')">Deagle</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_hegrenade; give weapon_flashbang; give weapon_smokegrenade; give weapon_molotov; give weapon_decoy')">Nades</button>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_knife')">Knife</button>
+          </div>
+          <div class="lbl mb-1"><i class="fa-solid fa-gears me-1"></i>Match</div>
           <div class="d-flex flex-wrap gap-1">
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_restartgame 1')">Restart Round</button>
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add')">Add Bot</button>
@@ -388,6 +406,15 @@ async function runCmd(){ const cmd=$('#cmd').value.trim(); if(!cmd)return; $('#c
   const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd})}); const d=await r.json();
   appendCout('<span class="ln">'+(esc(d.out)||'<span class="dim">(no output)</span>')+'</span>'); }
 function quick(c){ $('#cmd').value=c; runCmd(); }
+async function practiceSetup(){
+  const cmds='sv_cheats 1; sv_infinite_ammo 1; ammo_grenade_limit_total 5; mp_buy_anywhere 1; mp_buytime 9999; '+
+    'mp_maxmoney 60000; mp_startmoney 60000; mp_freezetime 0; mp_roundtime 60; mp_roundtime_defuse 60; '+
+    'mp_warmup_end; sv_grenade_trajectory_prac_pipreview 1; sv_grenade_trajectory_time_spectator 20; '+
+    'sv_showimpacts 1; sv_showimpacts_time 8; mp_limitteams 0; mp_autoteambalance 0; mp_restartgame 1';
+  appendCout('<span class="ln info">&gt; 1-Click Practice setup</span>');
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:cmds})}); const d=await r.json();
+  appendCout('<span class="ln ok">Practice mode enabled: cheats, infinite ammo, buy anywhere, full nades, instant respawn.</span>'+(d.out?'<span class="ln">'+esc(d.out)+'</span>':''));
+}
 
 // ---- settings ----
 async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
