@@ -16,47 +16,25 @@
     --accent:#1f83ff; --accent-dark:#0a6ae0; --accent-soft:#e8f2ff;
     --gold:#ffb400; --teal:#15c5c0; --purple:#9b6cff; --green:#19c37d; --red:#e0394e;
     --line:#eceef3; --shadow:0 6px 24px rgba(17,34,63,.06); --shadow-hover:0 12px 30px rgba(17,34,63,.10);
-    --sidebar:#0f1b2e; --sidebar-2:#16263e;
   }
   [data-bs-theme="dark"]{
     --bg:#0f141b; --surface:#1a212b; --surface-2:#232c38; --text:#e6ebf2; --text-secondary:#93a1b3;
     --accent-soft:#16263e; --line:#2b3441; --shadow:0 6px 24px rgba(0,0,0,.35); --shadow-hover:0 12px 30px rgba(0,0,0,.45);
   }
   *{font-family:"Nunito",system-ui,sans-serif}
-  body{background:var(--bg);color:var(--text);min-height:100vh;margin:0}
-  h1,h2,h3,h5,h6{color:var(--text);letter-spacing:-.01em}
+  body{background:var(--bg);color:var(--text);min-height:100vh}
+  h1,h2,h3,h6{color:var(--text);letter-spacing:-.01em}
 
-  /* ===== SIDEBAR ===== */
-  .sidebar{position:fixed;top:0;left:0;bottom:0;width:240px;background:var(--sidebar);color:#cdd8ea;
-    display:flex;flex-direction:column;z-index:40;transition:transform .25s ease}
-  .sb-brand{display:flex;align-items:center;gap:11px;padding:20px 20px;font-weight:900;font-size:1.2rem;color:#fff}
-  .sb-logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:1.2rem;color:#fff;
-    background:linear-gradient(135deg,var(--accent),#54a8ff);box-shadow:0 8px 18px rgba(31,131,255,.4)}
-  .sb-brand .two{color:var(--gold)}
-  .sb-nav{flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
-  .sb-sec{font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#62748f;padding:14px 12px 6px}
-  .sb-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;color:#aebfd6;
-    font-weight:800;cursor:pointer;border:none;background:none;width:100%;text-align:left;font-size:.95rem;transition:.12s}
-  .sb-item i{width:20px;text-align:center;font-size:1.05rem}
-  .sb-item:hover{background:rgba(255,255,255,.06);color:#fff}
-  .sb-item.active{background:linear-gradient(90deg,var(--accent),#3f97ff);color:#fff;box-shadow:0 6px 16px rgba(31,131,255,.35)}
-  .sb-foot{padding:12px;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:8px}
-  .sb-foot button{flex:1;background:rgba(255,255,255,.07);border:none;color:#cdd8ea;border-radius:11px;padding:10px;font-weight:800;cursor:pointer}
-  .sb-foot button:hover{background:rgba(255,255,255,.14);color:#fff}
+  .fa-pattern{position:fixed;inset:0;z-index:-1;pointer-events:none;user-select:none;display:flex;flex-wrap:wrap;
+    align-content:flex-start;justify-content:space-evenly;gap:30px;padding:22px;overflow:hidden;color:var(--accent);opacity:.05;font-size:1.7rem}
+  [data-bs-theme="dark"] .fa-pattern{opacity:.07}
 
-  /* ===== MAIN ===== */
-  .main{margin-left:240px;min-height:100vh;display:flex;flex-direction:column}
-  .topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:14px 22px;display:flex;align-items:center;gap:12px;
-    position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(17,34,63,.04)}
-  .topbar h5{margin:0;font-weight:900}
-  .hamb{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer}
-  .content{padding:22px;flex:1}
-
-  .status-pill{display:inline-flex;align-items:center;gap:8px;font-weight:900;border-radius:999px;padding:.45rem .85rem;font-size:.85rem}
-  .pill-on{background:#e4f8ee;color:var(--green)} .pill-off{background:#fdecee;color:var(--red)}
-  [data-bs-theme="dark"] .pill-on{background:#10301f} [data-bs-theme="dark"] .pill-off{background:#3a1a1f}
-  .pdot{width:9px;height:9px;border-radius:50%;background:currentColor;animation:pulse 1.4s ease-in-out infinite}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}50%{box-shadow:0 0 0 5px transparent;opacity:.55}}
+  .wc-navbar{background:var(--surface);border-bottom:1px solid var(--line);box-shadow:0 2px 12px rgba(17,34,63,.04)}
+  .navbar-brand{font-size:1.3rem;font-weight:900;color:var(--text);letter-spacing:-.02em}
+  .brand-logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:1.3rem;color:#fff;
+    background:linear-gradient(135deg,var(--accent),#54a8ff);box-shadow:0 8px 18px rgba(31,131,255,.35)}
+  .wc-userchip{background:var(--accent-soft);color:var(--accent);border:1px solid #d4e6ff;font-weight:800;padding:.5rem .8rem;border-radius:999px}
+  [data-bs-theme="dark"] .wc-userchip{border-color:#23405f}
 
   .wc-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
   .card-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
@@ -72,58 +50,61 @@
   .btn-soft{background:var(--surface-2);border:1px solid var(--line);color:var(--text);font-weight:800;border-radius:12px;padding:.6rem 1.1rem}
   .btn-soft:hover{border-color:var(--accent);color:var(--accent)}
   .btn-c{border:none;color:#fff;font-weight:800;border-radius:12px;padding:.6rem 1.1rem;transition:transform .08s}
-  .btn-c:hover{transform:translateY(-1px);color:#fff}
+  .btn-c:hover{transform:translateY(-1px);color:#fff} .btn-c:active{transform:translateY(0)}
   .c-green{background:var(--green)} .c-red{background:var(--red)} .c-gold{background:var(--gold);color:#5b3f00} .c-gold:hover{color:#5b3f00}
+  .c-dark{background:#1f2937} .c-dark:hover{color:#fff}
 
   .form-control,.form-select{background:var(--surface);border:1px solid #dfe4ec;color:var(--text);border-radius:12px;font-weight:600;padding:.6rem .8rem}
   [data-bs-theme="dark"] .form-control,[data-bs-theme="dark"] .form-select{border-color:#33414f}
   .form-control:focus,.form-select:focus{border-color:var(--accent);box-shadow:0 0 0 .2rem var(--accent-soft);color:var(--text);background:var(--surface)}
   label.lbl{font-weight:800;font-size:.72rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
-  .conn{font-family:"JetBrains Mono",monospace;background:var(--accent-soft);color:var(--accent-dark);padding:.45rem .8rem;border-radius:10px;font-size:.82rem;font-weight:700}
+
+  .status-pill{display:inline-flex;align-items:center;gap:8px;font-weight:900;border-radius:999px;padding:.5rem .9rem}
+  .pill-on{background:#e4f8ee;color:var(--green)} .pill-off{background:#fdecee;color:var(--red)}
+  [data-bs-theme="dark"] .pill-on{background:#10301f} [data-bs-theme="dark"] .pill-off{background:#3a1a1f}
+  .dot{width:10px;height:10px;border-radius:50%;background:currentColor;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}50%{box-shadow:0 0 0 5px transparent;opacity:.55}}
+
+  /* click-to-copy connect chip */
+  .conn{font-family:"JetBrains Mono",monospace;background:var(--accent-soft);color:var(--accent-dark);padding:.55rem .9rem;border-radius:12px;
+    font-size:.85rem;font-weight:700;cursor:pointer;border:1px dashed transparent;transition:.12s;display:inline-flex;align-items:center;gap:8px}
+  .conn:hover{border-color:var(--accent)} .conn.copied{background:#e4f8ee;color:var(--green)}
   [data-bs-theme="dark"] .conn{color:#7db8ff}
 
   /* ===== TERMINAL (PuTTY style) ===== */
-  .term-wrap{background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #000;box-shadow:var(--shadow)}
-  .term-bar{display:flex;align-items:center;gap:8px;background:#1b1b1b;padding:9px 14px;border-bottom:1px solid #000}
+  .term-wrap{background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #000}
+  .term-bar{display:flex;align-items:center;gap:8px;background:#1b1b1b;padding:9px 14px}
   .term-dots{display:flex;gap:6px;margin-right:6px}
   .term-dots span{width:11px;height:11px;border-radius:50%}
   .td-r{background:#ff5f56}.td-y{background:#ffbd2e}.td-g{background:#27c93f}
-  .term-title{color:#9aa4b2;font-family:"JetBrains Mono",monospace;font-size:.8rem;font-weight:500}
+  .term-title{color:#9aa4b2;font-family:"JetBrains Mono",monospace;font-size:.8rem}
   .term-bar .spacer{flex:1}
   .term-btn{background:#2a2a2a;border:1px solid #3a3a3a;color:#cfd6e0;border-radius:8px;padding:5px 11px;font-size:.78rem;font-weight:700;cursor:pointer}
   .term-btn:hover{background:#363636;color:#fff}
   .term-btn.on{background:var(--green);border-color:var(--green);color:#04210f}
-  .term{font-family:"JetBrains Mono","Consolas",monospace;font-size:12.5px;line-height:1.5;color:#cfcfcf;background:#0c0c0c;
-    padding:14px 16px;height:60vh;min-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .term{font-family:"JetBrains Mono","Consolas",monospace;font-size:12.5px;line-height:1.55;color:#cfcfcf;background:#0c0c0c;
+    padding:14px 16px;overflow:auto;white-space:pre-wrap;word-break:break-word}
   .term .ln{display:block}
   .term .err{color:#ff6b6b}.term .ok{color:#3ad07a}.term .warn{color:#ffcf5c}.term .info{color:#69b7ff}.term .dim{color:#7a7a7a}
   .term::-webkit-scrollbar{width:10px}.term::-webkit-scrollbar-thumb{background:#2c2c2c;border-radius:5px}
 
-  /* console output reuse terminal look (smaller) */
-  .term.sm{height:auto;max-height:300px;min-height:auto}
+  /* big modal terminal */
+  .modal-term .modal-content{border:none;border-radius:16px;overflow:hidden;background:#0c0c0c}
+  .modal-term .term{height:72vh}
+  #consoleModal .term{height:48vh}
 
-  /* ===== LOGIN ===== */
   #login{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(700px 380px at 85% -5%,rgba(31,131,255,.10),transparent 60%),
                radial-gradient(620px 360px at -5% 8%,rgba(21,197,192,.10),transparent 55%),var(--bg)}
   #login .wc-card{width:370px}
   .login-logo{width:78px;height:78px;border-radius:22px;display:grid;place-items:center;font-size:2rem;color:#fff;margin:0 auto;
     background:linear-gradient(135deg,var(--accent),#54a8ff);box-shadow:0 12px 26px rgba(31,131,255,.35)}
-
-  .view{display:none}.view.active{display:block}
   .hide{display:none!important}
-  .backdrop{display:none}
-
-  @media (max-width:991px){
-    .sidebar{transform:translateX(-100%)}
-    .sidebar.open{transform:translateX(0)}
-    .main{margin-left:0}
-    .hamb{display:block}
-    .backdrop.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:35}
-  }
 </style>
 </head>
 <body>
+
+<div class="fa-pattern" id="fap"></div>
 
 <!-- LOGIN -->
 <div id="login">
@@ -143,136 +124,133 @@
 <!-- APP -->
 <div id="app" class="hide">
 
-  <div class="backdrop" id="backdrop" onclick="closeSidebar()"></div>
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sb-brand"><span class="sb-logo"><i class="fa-solid fa-crosshairs"></i></span> CS<span class="two">2</span>&nbsp;Panel</div>
-    <nav class="sb-nav">
-      <div class="sb-sec">Manage</div>
-      <button class="sb-item active" data-view="dashboard" onclick="showView('dashboard')"><i class="fa-solid fa-gauge-high"></i> Dashboard</button>
-      <button class="sb-item" data-view="console" onclick="showView('console')"><i class="fa-solid fa-terminal"></i> RCON Console</button>
-      <button class="sb-item" data-view="logs" onclick="showView('logs')"><i class="fa-solid fa-scroll"></i> Live Logs</button>
-      <div class="sb-sec">Configure</div>
-      <button class="sb-item" data-view="settings" onclick="showView('settings')"><i class="fa-solid fa-sliders"></i> Settings</button>
-    </nav>
-    <div class="sb-foot">
-      <button onclick="toggleTheme()" title="Theme"><i class="fa-solid fa-circle-half-stroke"></i></button>
-      <button onclick="logout()" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+<nav class="navbar wc-navbar px-3 px-md-4 py-2">
+  <div class="container-fluid p-0">
+    <span class="navbar-brand d-flex align-items-center gap-2">
+      <span class="brand-logo"><i class="fa-solid fa-crosshairs"></i></span> CS2 Panel
+    </span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="status-pill pill-off" id="statusPill"><span class="dot"></span><span id="stxt">…</span></span>
+      <button class="btn btn-sm wc-userchip" onclick="toggleTheme()" title="Toggle theme"><i class="fa-solid fa-circle-half-stroke"></i></button>
+      <button class="btn btn-sm wc-userchip" onclick="logout()"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
     </div>
-  </aside>
+  </div>
+</nav>
 
-  <!-- MAIN -->
-  <div class="main">
-    <div class="topbar">
-      <button class="hamb" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
-      <h5 id="viewTitle">Dashboard</h5>
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <span class="conn d-none d-md-inline" id="connstr"></span>
-        <span class="status-pill pill-off" id="statusPill"><span class="pdot"></span><span id="stxt">…</span></span>
+<div class="container py-4" style="max-width:1040px">
+  <div class="row g-4">
+
+    <!-- POWER -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head"><span class="head-icon ic-green"><i class="fa-solid fa-power-off"></i></span><h6>Server Power</h6></div>
+        <div class="p-3 p-md-4">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button class="btn-c c-green" onclick="ctl('start')"><i class="fa-solid fa-play me-1"></i> Start</button>
+            <button class="btn-c c-red" onclick="ctl('stop')"><i class="fa-solid fa-stop me-1"></i> Stop</button>
+            <button class="btn-accent" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
+            <button class="btn-c c-gold" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
+          </div>
+          <hr style="border-color:var(--line)">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="lbl mb-0 me-1">Quick tools:</span>
+            <button class="btn-c c-dark" data-bs-toggle="modal" data-bs-target="#logsModal" onclick="openLogs()"><i class="fa-solid fa-scroll me-1"></i> Live Logs</button>
+            <button class="btn-c c-dark" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-1"></i> RCON Console</button>
+            <span class="conn ms-auto" id="connstr" onclick="copyConn()" title="Click to copy"><i class="fa-solid fa-copy"></i><span id="conntext">connect …</span></span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="content">
-
-      <!-- DASHBOARD -->
-      <section class="view active" id="view-dashboard">
-        <div class="wc-card mb-4">
-          <div class="card-head"><span class="head-icon ic-green"><i class="fa-solid fa-power-off"></i></span><h6>Server Power</h6></div>
-          <div class="p-3 p-md-4">
-            <div class="d-flex flex-wrap gap-2 align-items-center">
-              <button class="btn-c c-green" onclick="ctl('start')"><i class="fa-solid fa-play me-1"></i> Start</button>
-              <button class="btn-c c-red" onclick="ctl('stop')"><i class="fa-solid fa-stop me-1"></i> Stop</button>
-              <button class="btn-accent" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
-              <button class="btn-c c-gold" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
-            </div>
+    <!-- SETTINGS -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head"><span class="head-icon ic-blue"><i class="fa-solid fa-sliders"></i></span><h6>Match Settings</h6></div>
+        <div class="p-3 p-md-4">
+          <div class="row g-3">
+            <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-map me-1"></i>Map</label>
+              <select id="map" class="form-select">
+                <option>de_inferno</option><option>de_dust2</option><option>de_mirage</option>
+                <option>de_nuke</option><option>de_overpass</option><option>de_ancient</option>
+                <option>de_vertigo</option><option>de_anubis</option><option>de_train</option>
+              </select></div>
+            <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-trophy me-1"></i>Mode</label>
+              <select id="mode" class="form-select">
+                <option value="1,2">Wingman (2v2)</option><option value="0,0">Casual</option>
+                <option value="0,1">Competitive</option><option value="0,2">Deathmatch</option><option value="0,3">Custom</option>
+              </select></div>
+            <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-user-group me-1"></i>Join Password</label><input id="svpw" class="form-control"></div>
+            <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-key me-1"></i>RCON Password</label><input id="rcpw" class="form-control"></div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn-accent" onclick="saveSettings(true)"><i class="fa-solid fa-floppy-disk me-1"></i> Save &amp; Restart</button>
+            <button class="btn-soft" onclick="saveSettings(false)"><i class="fa-solid fa-floppy-disk me-1"></i> Save only</button>
+            <button class="btn-soft" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
           </div>
         </div>
-        <div class="wc-card">
-          <div class="card-head"><span class="head-icon ic-blue"><i class="fa-solid fa-circle-info"></i></span><h6>Server Status</h6></div>
-          <div class="p-3 p-md-4">
-            <div class="term-wrap">
-              <div class="term-bar"><span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
-                <span class="term-title">status</span><span class="spacer"></span>
-                <button class="term-btn" onclick="refresh()"><i class="fa-solid fa-rotate"></i> Refresh</button>
-              </div>
-              <div class="term sm" id="info">…</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
+    </div>
 
-      <!-- CONSOLE -->
-      <section class="view" id="view-console">
-        <div class="wc-card">
-          <div class="card-head"><span class="head-icon ic-teal"><i class="fa-solid fa-terminal"></i></span><h6>RCON Console</h6></div>
-          <div class="p-3 p-md-4">
-            <div class="input-group mb-3">
-              <input id="cmd" class="form-control" placeholder="bot_add   |   mp_restartgame 1   |   changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
-              <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane me-1"></i> Send</button>
-            </div>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <button class="btn-soft" onclick="quick('mp_restartgame 1')">Restart Round</button>
-              <button class="btn-soft" onclick="quick('bot_add')">Add Bot</button>
-              <button class="btn-soft" onclick="quick('bot_kick')">Kick Bots</button>
-              <button class="btn-soft" onclick="quick('mp_warmup_end')">End Warmup</button>
-              <button class="btn-soft" onclick="quick('status')">Status</button>
-            </div>
-            <div class="term-wrap">
-              <div class="term-bar"><span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
-                <span class="term-title">rcon@cs2</span><span class="spacer"></span>
-                <button class="term-btn" onclick="document.getElementById('cout').innerHTML=''">Clear</button>
-              </div>
-              <div class="term" id="cout"><span class="ln dim">Ready. Type a command above.</span></div>
-            </div>
-          </div>
+    <!-- STATUS -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-chart-line"></i></span><h6>Server Status</h6>
+          <button class="btn-soft ms-auto py-1 px-3" onclick="refresh()"><i class="fa-solid fa-rotate"></i></button>
         </div>
-      </section>
-
-      <!-- LOGS -->
-      <section class="view" id="view-logs">
-        <div class="term-wrap">
-          <div class="term-bar">
-            <span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
-            <span class="term-title">root@cshama: journalctl -u cs2 -f</span>
-            <span class="spacer"></span>
-            <button class="term-btn on" id="followBtn" onclick="toggleFollow()"><i class="fa-solid fa-angles-down"></i> Follow</button>
-            <button class="term-btn" onclick="loadLogs(true)"><i class="fa-solid fa-rotate"></i> Refresh</button>
-            <button class="term-btn" onclick="document.getElementById('logterm').innerHTML=''">Clear</button>
-          </div>
-          <div class="term" id="logterm" style="height:72vh"><span class="ln dim">Loading logs…</span></div>
+        <div class="p-3 p-md-4">
+          <div class="term-wrap"><div class="term" id="info" style="max-height:300px">…</div></div>
         </div>
-      </section>
+      </div>
+    </div>
 
-      <!-- SETTINGS -->
-      <section class="view" id="view-settings">
-        <div class="wc-card">
-          <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-sliders"></i></span><h6>Match Settings</h6></div>
-          <div class="p-3 p-md-4">
-            <div class="row g-3">
-              <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-map me-1"></i>Map</label>
-                <select id="map" class="form-select">
-                  <option>de_inferno</option><option>de_dust2</option><option>de_mirage</option>
-                  <option>de_nuke</option><option>de_overpass</option><option>de_ancient</option>
-                  <option>de_vertigo</option><option>de_anubis</option><option>de_train</option>
-                </select></div>
-              <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-trophy me-1"></i>Mode</label>
-                <select id="mode" class="form-select">
-                  <option value="1,2">Wingman (2v2)</option><option value="0,0">Casual</option>
-                  <option value="0,1">Competitive</option><option value="0,2">Deathmatch</option><option value="0,3">Custom</option>
-                </select></div>
-              <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-user-group me-1"></i>Join Password</label><input id="svpw" class="form-control"></div>
-              <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-key me-1"></i>RCON Password</label><input id="rcpw" class="form-control"></div>
-            </div>
-            <div class="d-flex flex-wrap gap-2 mt-3">
-              <button class="btn-accent" onclick="saveSettings(true)"><i class="fa-solid fa-floppy-disk me-1"></i> Save &amp; Restart</button>
-              <button class="btn-soft" onclick="saveSettings(false)"><i class="fa-solid fa-floppy-disk me-1"></i> Save only</button>
-              <button class="btn-soft" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
-            </div>
-          </div>
+  </div>
+  <p class="text-center mt-4 mb-2" style="color:var(--text-secondary);font-weight:700">CS2 Control Panel · running on your server</p>
+</div>
+</div>
+
+<!-- ===== LIVE LOGS MODAL ===== -->
+<div class="modal fade modal-term" id="logsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="term-bar">
+        <span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
+        <span class="term-title">root@cshama: journalctl -u cs2 -f</span>
+        <span class="spacer"></span>
+        <button class="term-btn on" id="followBtn" onclick="toggleFollow()"><i class="fa-solid fa-angles-down"></i> Follow</button>
+        <button class="term-btn" onclick="loadLogs()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        <button class="term-btn" onclick="document.getElementById('logterm').innerHTML=''">Clear</button>
+        <button class="term-btn" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i> Close</button>
+      </div>
+      <div class="term" id="logterm"><span class="ln dim">Loading logs…</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RCON CONSOLE MODAL ===== -->
+<div class="modal fade modal-term" id="consoleModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="term-bar">
+        <span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
+        <span class="term-title">rcon@cs2</span>
+        <span class="spacer"></span>
+        <button class="term-btn" onclick="document.getElementById('cout').innerHTML=''">Clear</button>
+        <button class="term-btn" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i> Close</button>
+      </div>
+      <div class="term" id="cout"><span class="ln dim">Ready. Type a command below.</span></div>
+      <div style="background:#1b1b1b;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
+        <div class="input-group" style="flex:1;min-width:240px">
+          <input id="cmd" class="form-control" placeholder="bot_add | mp_restartgame 1 | changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
+          <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
-      </section>
-
+      </div>
+      <div style="background:#1b1b1b;padding:0 14px 12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="term-btn" onclick="quick('mp_restartgame 1')">Restart Round</button>
+        <button class="term-btn" onclick="quick('bot_add')">Add Bot</button>
+        <button class="term-btn" onclick="quick('bot_kick')">Kick Bots</button>
+        <button class="term-btn" onclick="quick('mp_warmup_end')">End Warmup</button>
+        <button class="term-btn" onclick="quick('status')">Status</button>
+      </div>
     </div>
   </div>
 </div>
@@ -283,76 +261,64 @@ const $ = s => document.querySelector(s);
 async function api(p,o){ return fetch(p, Object.assign({headers:{'Content-Type':'application/json'}}, o||{})); }
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-// ---- theme ----
+// faint background pattern
+(()=>{ const ic=['fa-crosshairs','fa-bomb','fa-gun','fa-shield-halved','fa-trophy','fa-skull','fa-fire','fa-bullseye'];
+  let h=''; for(let i=0;i<120;i++) h+=`<i class="fa-solid ${ic[i%ic.length]}"></i>`; $('#fap').innerHTML=h; })();
+
 function toggleTheme(){ const h=document.documentElement; const t=h.getAttribute('data-bs-theme')==='dark'?'light':'dark';
   h.setAttribute('data-bs-theme',t); try{localStorage.setItem('cs2theme',t)}catch(e){} }
 try{const t=localStorage.getItem('cs2theme'); if(t)document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}
 
-// ---- sidebar (mobile) ----
-function openSidebar(){ $('#sidebar').classList.add('open'); $('#backdrop').classList.add('show'); }
-function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#backdrop').classList.remove('show'); }
-
-// ---- view switching ----
-const TITLES={dashboard:'Dashboard',console:'RCON Console',logs:'Live Logs',settings:'Settings'};
-function showView(v){
-  document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
-  $('#view-'+v).classList.add('active');
-  document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-  $('#viewTitle').textContent = TITLES[v]||'';
-  closeSidebar();
-  if(v==='logs'){ loadLogs(true); startLogStream(); } else { stopLogStream(); }
-}
-
-// ---- log terminal (PuTTY style) ----
-let logTimer=null, follow=true;
-function classify(line){
-  const l=line.toLowerCase();
+// terminal rendering
+function classify(line){ const l=line.toLowerCase();
   if(/fail|error|fatal|denied|refused|segfault|kicked/.test(l)) return 'err';
   if(/\bok\b|success|activated|secure mode|started|logged on|connected/.test(l)) return 'ok';
   if(/warn|missing|could not|unable|long frame/.test(l)) return 'warn';
-  if(/^jun|^\w{3}\s+\d/i.test(line)) return 'info';
-  return '';
-}
-function renderTerm(el, text){
-  const lines=text.split(/\r?\n/);
+  if(/^\w{3}\s+\d/i.test(line)) return 'info';
+  return ''; }
+function renderTerm(el,text,foll){ const lines=(text||'').split(/\r?\n/);
   el.innerHTML = lines.map(l=>`<span class="ln ${classify(l)}">${esc(l)||'&nbsp;'}</span>`).join('');
-  if(follow) el.scrollTop = el.scrollHeight;
-}
-async function loadLogs(force){
-  const r=await api('/api/logs'); const d=await r.json();
-  renderTerm($('#logterm'), d.out||'(no logs)');
-}
-function startLogStream(){ stopLogStream(); logTimer=setInterval(loadLogs, 3000); }
+  if(foll) el.scrollTop=el.scrollHeight; }
+
+// ---- live logs modal ----
+let logTimer=null, follow=true;
+function openLogs(){ loadLogs(); startLogStream(); }
+async function loadLogs(){ const r=await api('/api/logs'); const d=await r.json(); renderTerm($('#logterm'), d.out||'(no logs)', follow); }
+function startLogStream(){ stopLogStream(); logTimer=setInterval(loadLogs,3000); }
 function stopLogStream(){ if(logTimer){clearInterval(logTimer); logTimer=null;} }
-function toggleFollow(){ follow=!follow; $('#followBtn').classList.toggle('on',follow); if(follow) $('#logterm').scrollTop=$('#logterm').scrollHeight; }
+function toggleFollow(){ follow=!follow; $('#followBtn').classList.toggle('on',follow); if(follow)$('#logterm').scrollTop=$('#logterm').scrollHeight; }
+document.addEventListener('DOMContentLoaded',()=>{ const m=$('#logsModal'); if(m) m.addEventListener('hidden.bs.modal',stopLogStream); });
+
+// ---- copy connect string ----
+function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr');
+  navigator.clipboard.writeText(txt).then(()=>{ el.classList.add('copied');
+    const old=$('#conntext').textContent; $('#conntext').textContent='Copied!';
+    setTimeout(()=>{ el.classList.remove('copied'); $('#conntext').textContent=old; },1200);
+  }).catch(()=>{ /* fallback */ const t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }); }
 
 // ---- auth ----
-async function login(){
-  const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
-  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); }
-  else $('#lerr').textContent='Wrong username or password.';
-}
+async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); } else $('#lerr').textContent='Wrong username or password.'; }
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
 async function refresh(){
-  const r=await api('/api/status');
-  if(r.status===401){ $('#login').classList.remove('hide'); $('#app').classList.add('hide'); return; }
+  const r=await api('/api/status'); if(r.status===401){ $('#login').classList.remove('hide'); $('#app').classList.add('hide'); return; }
   const d=await r.json();
   $('#statusPill').className='status-pill '+(d.running?'pill-on':'pill-off');
   $('#stxt').textContent=d.running?'ONLINE':'OFFLINE';
-  renderTerm($('#info'), d.info||'(server offline)');
+  renderTerm($('#info'), d.info||'(server offline)', false);
   const v=d.vars||{};
   if(v.MAP)$('#map').value=v.MAP;
   if(v.GAME_TYPE!=null&&v.GAME_MODE!=null)$('#mode').value=v.GAME_TYPE+','+v.GAME_MODE;
   if(v.SV_PW!=null)$('#svpw').value=v.SV_PW;
   if(v.RCON_PW!=null)$('#rcpw').value=v.RCON_PW;
-  $('#connstr').textContent='connect '+location.hostname+':'+(v.PORT||'27015')+(v.SV_PW?'; password '+v.SV_PW:'');
+  $('#conntext').textContent='connect '+location.hostname+':'+(v.PORT||'27015')+(v.SV_PW?'; password '+v.SV_PW:'');
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
-  renderTerm($('#info'), d.out||d.error); setTimeout(refresh,1500); }
+  renderTerm($('#info'), d.out||d.error, false); setTimeout(refresh,1500); }
 async function practice(){ const r=await api('/api/practice',{method:'POST'}); const d=await r.json();
-  showView('console'); $('#cout').innerHTML='<span class="ln ok">'+esc(d.out||d.error)+'</span>'; }
+  new bootstrap.Modal($('#consoleModal')).show(); $('#cout').innerHTML='<span class="ln ok">'+esc(d.out||d.error)+'</span>'; }
 
 // ---- console ----
 function appendCout(html){ const t=$('#cout'); if(t.querySelector('.dim'))t.innerHTML=''; t.innerHTML+=html; t.scrollTop=t.scrollHeight; }
@@ -363,14 +329,12 @@ async function runCmd(){ const cmd=$('#cmd').value.trim(); if(!cmd)return; $('#c
 function quick(c){ $('#cmd').value=c; runCmd(); }
 
 // ---- settings ----
-async function saveSettings(restart){
-  const [gt,gm]=$('#mode').value.split(',');
+async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
   const body={MAP:$('#map').value,GAME_TYPE:gt,GAME_MODE:gm,SV_PW:$('#svpw').value,RCON_PW:$('#rcpw').value,_restart:restart};
   const r=await api('/api/settings',{method:'POST',body:JSON.stringify(body)}); const d=await r.json();
-  showView('dashboard'); renderTerm($('#info'), d.out||d.error); if(restart)setTimeout(refresh,2500); else refresh();
-}
+  renderTerm($('#info'), d.out||d.error, false); if(restart)setTimeout(refresh,2500); else refresh(); }
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
-  showView('dashboard'); renderTerm($('#info'), d.out||d.error); setTimeout(refresh,1500); }
+  renderTerm($('#info'), d.out||d.error, false); setTimeout(refresh,1500); }
 
 // ---- boot ----
 api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); }});
