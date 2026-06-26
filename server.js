@@ -13,7 +13,9 @@ const PANEL_PASS = process.env.PANEL_PASS || 'changeme';
 const PANEL_PORT = parseInt(process.env.PANEL_PORT || '8080', 10);
 const SERVICE = process.env.CS2_SERVICE || 'cs2';
 const VARS_FILE = process.env.VARS_FILE || '/home/steam/cs2_server/server-vars.conf';
-const RCON_HOST = '127.0.0.1';
+// CS2 may bind RCON to 127.0.0.1 OR 127.0.1.1 (Ubuntu hostname loopback). Try both.
+const RCON_HOSTS = (process.env.RCON_HOST || '127.0.0.1,127.0.1.1,localhost')
+  .split(',').map(s => s.trim()).filter(Boolean);
 
 // Keys the panel is allowed to edit in server-vars.conf
 const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'PORT', 'GSLT'];
@@ -41,14 +43,27 @@ function writeVars(updates) {
 }
 
 // ---------- Source RCON client (pure Node, no deps) ----------
-function rconExec(command) {
+// Try each candidate host; retry the next one only on connection-level errors.
+async function rconExec(command) {
+  let lastErr;
+  for (const host of RCON_HOSTS) {
+    try { return await rconExecHost(host, command); }
+    catch (e) {
+      lastErr = e;
+      if (!/ECONNREFUSED|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|timeout/i.test(e.message)) throw e;
+    }
+  }
+  throw lastErr || new Error('RCON connect failed (is the server running?)');
+}
+
+function rconExecHost(host, command) {
   return new Promise((resolve, reject) => {
     const vars = readVars();
     const port = parseInt(vars.PORT || '27015', 10);
     const pass = vars.RCON_PW || '';
     if (!pass) return reject(new Error('No RCON password set in server-vars.conf'));
 
-    const socket = net.connect(port, RCON_HOST);
+    const socket = net.connect(port, host);
     let authed = false;
     let response = '';
     let buffer = Buffer.alloc(0);
