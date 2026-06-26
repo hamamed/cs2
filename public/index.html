@@ -188,8 +188,12 @@
               </select></div>
             <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-trophy me-1"></i>Mode</label>
               <select id="mode" class="form-select">
-                <option value="1,2">Wingman (2v2)</option><option value="0,0">Casual</option>
-                <option value="0,1">Competitive</option><option value="0,2">Deathmatch</option><option value="0,3">Custom</option>
+                <option value="0,0">Casual</option>
+                <option value="0,1">Competitive</option>
+                <option value="0,2">Wingman (2v2)</option>
+                <option value="1,2">Deathmatch</option>
+                <option value="1,0">Arms Race</option>
+                <option value="1,1">Demolition</option>
               </select></div>
             <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-user-group me-1"></i>Join Password</label><input id="svpw" class="form-control"></div>
             <div class="col-md-3"><label class="lbl"><i class="fa-solid fa-key me-1"></i>RCON Password</label><input id="rcpw" class="form-control"></div>
@@ -314,7 +318,7 @@ async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
-const MODES={'1,2':'Wingman','0,0':'Casual','0,1':'Competitive','0,2':'Deathmatch','0,3':'Custom'};
+const MODES={'0,0':'Casual','0,1':'Competitive','0,2':'Wingman','1,2':'Deathmatch','1,0':'Arms Race','1,1':'Demolition'};
 function modeName(gt,gm){ if(gt==null||gm==null)return '—'; return MODES[gt+','+gm]||('Type '+gt+'/'+gm); }
 function parsePlayers(info){
   if(!info)return null;
