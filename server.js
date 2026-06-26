@@ -201,6 +201,43 @@ async function a2sInfo() {
   throw lastErr || new Error('A2S failed');
 }
 
+// A2S_PLAYER — list of players (name, score, seconds connected)
+function a2sPlayersHost(host, port) {
+  return new Promise((resolve, reject) => {
+    const sock = dgram.createSocket('udp4');
+    let settled = false, challenge = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]);
+    const send = () => sock.send(Buffer.concat([Buffer.from([0xFF, 0xFF, 0xFF, 0xFF, 0x55]), challenge]), port, host);
+    const timer = setTimeout(() => finish(new Error('A2S timeout')), 2500);
+    function finish(err, val) { if (settled) return; settled = true; clearTimeout(timer); try { sock.close(); } catch (e) {} err ? reject(err) : resolve(val); }
+    sock.on('error', finish);
+    sock.on('message', (msg) => {
+      try {
+        const type = msg.readUInt8(4);
+        if (type === 0x41) { challenge = msg.slice(5, 9); send(); return; }
+        if (type === 0x44) {
+          let o = 5; const count = msg.readUInt8(o++); const players = [];
+          for (let i = 0; i < count; i++) {
+            o++; // index
+            const s = o; while (o < msg.length && msg[o] !== 0) o++; const name = msg.slice(s, o).toString('utf8'); o++;
+            const score = msg.readInt32LE(o); o += 4;
+            const duration = msg.readFloatLE(o); o += 4;
+            players.push({ name, score, duration });
+          }
+          finish(null, players);
+        }
+      } catch (e) { finish(e); }
+    });
+    send();
+  });
+}
+async function a2sPlayers() {
+  const port = parseInt(readVars().PORT || '27015', 10);
+  const hosts = Array.from(new Set([...RCON_HOSTS, '127.0.0.1']));
+  let lastErr;
+  for (const host of hosts) { try { return await a2sPlayersHost(host, port); } catch (e) { lastErr = e; } }
+  throw lastErr || new Error('A2S failed');
+}
+
 // ---------- systemctl helpers ----------
 function sh(cmd) {
   return new Promise((resolve) => {
@@ -329,6 +366,14 @@ app.post('/api/saved/remove', requireAuth, (req, res) => {
   const maps = readSaved().filter(m => m.id !== id);
   writeSaved(maps);
   res.json({ ok: true, maps });
+});
+
+// Player list (names, score, time online) + bot count
+app.get('/api/players', requireAuth, async (req, res) => {
+  try {
+    const [players, info] = await Promise.all([a2sPlayers(), a2sInfo().catch(() => null)]);
+    res.json({ ok: true, players, bots: info ? info.bots : null, total: info ? info.players : players.length });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Recent server logs
