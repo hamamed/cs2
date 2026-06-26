@@ -390,9 +390,9 @@ async function refresh(){
   const isWs = wsTag.indexOf('workshop')===0;
   $('#stMode').textContent = isWs ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
   if(isWs){ const id=wsTag.replace(/\D/g,''); const info=await wsInfo(id); paintCurMap(info, wsTag); }
-  else { paintCurMap(null, curMap || (v.MAP||'—')); }
-  const pl=parsePlayers(d.info);
-  $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—';
+  else { paintCurMap(null, (d.a2s&&d.a2s.map) || curMap || (v.MAP||'—')); }
+  if(d.a2s){ $('#stPlayers').textContent = d.a2s.players+' players · '+d.a2s.bots+' bots'; }
+  else { const pl=parsePlayers(d.info); $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—'; }
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
   loadedMap=null; /* restart/stop reverts to the configured map */

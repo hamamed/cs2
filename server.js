@@ -7,6 +7,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 const https = require('https');
+const dgram = require('dgram');
 
 // ---------- Config (override via environment in the systemd unit) ----------
 const PANEL_USER = process.env.PANEL_USER || 'admin';
@@ -165,6 +166,41 @@ function rconExecHost(host, command) {
   });
 }
 
+// ---------- A2S server query (reliable player/bot count + map) ----------
+function a2sInfoHost(host, port) {
+  return new Promise((resolve, reject) => {
+    const sock = dgram.createSocket('udp4');
+    let settled = false;
+    const REQ = Buffer.concat([Buffer.from([0xFF, 0xFF, 0xFF, 0xFF, 0x54]), Buffer.from('Source Engine Query\0', 'latin1')]);
+    const send = (challenge) => sock.send(challenge ? Buffer.concat([REQ, challenge]) : REQ, port, host);
+    const timer = setTimeout(() => finish(new Error('A2S timeout')), 2500);
+    function finish(err, val) { if (settled) return; settled = true; clearTimeout(timer); try { sock.close(); } catch (e) {} err ? reject(err) : resolve(val); }
+    sock.on('error', finish);
+    sock.on('message', (msg) => {
+      try {
+        const type = msg.readUInt8(4);
+        if (type === 0x41) { send(msg.slice(5, 9)); return; } // challenge -> resend
+        if (type === 0x49) {
+          let o = 5; o++; // skip protocol
+          const readStr = () => { const s = o; while (o < msg.length && msg[o] !== 0) o++; const str = msg.slice(s, o).toString('utf8'); o++; return str; };
+          const name = readStr(); const map = readStr(); readStr(); readStr(); // folder, game
+          o += 2; // appid
+          const players = msg.readUInt8(o++); const maxplayers = msg.readUInt8(o++); const bots = msg.readUInt8(o++);
+          finish(null, { name, map, players, maxplayers, bots });
+        }
+      } catch (e) { finish(e); }
+    });
+    send();
+  });
+}
+async function a2sInfo() {
+  const port = parseInt(readVars().PORT || '27015', 10);
+  const hosts = Array.from(new Set([...RCON_HOSTS, '127.0.0.1']));
+  let lastErr;
+  for (const host of hosts) { try { return await a2sInfoHost(host, port); } catch (e) { lastErr = e; } }
+  throw lastErr || new Error('A2S failed');
+}
+
 // ---------- systemctl helpers ----------
 function sh(cmd) {
   return new Promise((resolve) => {
@@ -207,11 +243,12 @@ app.get('/api/status', requireAuth, async (req, res) => {
   const running = active.out.trim() === 'active';
   if (!running) { liveMap = null; lastStartStamp = null; }
   else await detectRestart();
-  let info = '';
+  let info = '', a2s = null;
   if (running) {
+    try { a2s = await a2sInfo(); } catch (e) {}
     try { info = await rconExec('status'); } catch (e) { info = '(server up, RCON not ready: ' + e.message + ')'; }
   }
-  res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap });
+  res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap, a2s });
 });
 
 // Start / stop / restart
@@ -319,14 +356,18 @@ app.get('/api/public', async (req, res) => {
   const v = readVars();
   const isWs = !!(liveMap && liveMap.indexOf('workshop') === 0);
   const wsId = isWs ? liveMap.replace(/\D/g, '') : '';
-  let players = null, mapInfo = null;
-  if (running) { try { players = parsePlayersServer(await rconExec('status')); } catch (e) {} }
+  let players = null, mapInfo = null, a2s = null;
+  if (running) {
+    try { a2s = await a2sInfo(); } catch (e) {}
+    if (a2s) players = { humans: a2s.players, bots: a2s.bots, max: a2s.maxplayers };
+    else { try { players = parsePlayersServer(await rconExec('status')); } catch (e) {} }
+  }
   if (wsId) { try { mapInfo = await cachedWsInfo(wsId); } catch (e) {} }
   res.json({
     running,
     port: v.PORT || '27015',
     password: v.SV_PW || '',
-    mapName: liveMap || v.MAP || '',
+    mapName: (a2s && a2s.map) || liveMap || v.MAP || '',
     isWorkshop: isWs,
     mapInfo, // {title, preview, url} or null
     game_type: v.GAME_TYPE, game_mode: v.GAME_MODE,
