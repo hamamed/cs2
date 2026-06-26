@@ -41,9 +41,16 @@
   .card-head h6{margin:0;font-weight:900;font-size:1rem}
   .head-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:1.1rem}
   .ic-green{background:#e4f8ee;color:var(--green)} .ic-blue{background:var(--accent-soft);color:var(--accent)}
-  .ic-teal{background:#e4faf9;color:var(--teal)} .ic-gold{background:#fff3d6;color:var(--gold)}
-  [data-bs-theme="dark"] .ic-green{background:#10301f}[data-bs-theme="dark"] .ic-teal{background:#0e2e2c}[data-bs-theme="dark"] .ic-gold{background:#332a10}
+  .ic-teal{background:#e4faf9;color:var(--teal)} .ic-gold{background:#fff3d6;color:var(--gold)} .ic-red{background:#fdecee;color:var(--red)}
+  [data-bs-theme="dark"] .ic-green{background:#10301f}[data-bs-theme="dark"] .ic-teal{background:#0e2e2c}[data-bs-theme="dark"] .ic-gold{background:#332a10}[data-bs-theme="dark"] .ic-red{background:#3a1a1f}
   .hint{font-size:.72rem;font-weight:800;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:.25rem .7rem}
+
+  /* status tiles */
+  .stat-tile{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:13px;height:100%}
+  .stat-ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.2rem;flex:0 0 auto}
+  .stat-tile .lab{font-size:.68rem;font-weight:800;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+  .stat-tile .val{font-size:1.1rem;font-weight:900;color:var(--text);line-height:1.15;margin-top:2px;word-break:break-word}
 
   .btn-accent{background:var(--accent);border:none;color:#fff;font-weight:800;border-radius:12px;padding:.6rem 1.1rem;
     box-shadow:0 6px 16px rgba(31,131,255,.28);transition:transform .08s,box-shadow .2s,background .2s}
@@ -136,6 +143,20 @@
 
 <div class="container py-4" style="max-width:1040px">
   <div class="row g-4">
+
+    <!-- LIVE STATUS TILES -->
+    <div class="col-12">
+      <div class="row g-3">
+        <div class="col-6 col-lg-3"><div class="stat-tile"><span class="stat-ic ic-red" id="stIcon"><i class="fa-solid fa-server"></i></span>
+          <div><div class="lab">Server</div><div class="val" id="stStatus">…</div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="stat-tile"><span class="stat-ic ic-blue"><i class="fa-solid fa-map"></i></span>
+          <div><div class="lab">Current Map</div><div class="val" id="stMap">—</div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="stat-tile"><span class="stat-ic ic-gold"><i class="fa-solid fa-trophy"></i></span>
+          <div><div class="lab">Mode</div><div class="val" id="stMode">—</div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="stat-tile"><span class="stat-ic ic-teal"><i class="fa-solid fa-users"></i></span>
+          <div><div class="lab">Players</div><div class="val" id="stPlayers">—</div></div></div></div>
+      </div>
+    </div>
 
     <!-- POWER -->
     <div class="col-12">
@@ -293,6 +314,16 @@ async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
+const MODES={'1,2':'Wingman','0,0':'Casual','0,1':'Competitive','0,2':'Deathmatch','0,3':'Custom'};
+function modeName(gt,gm){ if(gt==null||gm==null)return '—'; return MODES[gt+','+gm]||('Type '+gt+'/'+gm); }
+function parsePlayers(info){
+  if(!info)return null;
+  let m=info.match(/players\s*:\s*(\d+)\s*humans?,\s*(\d+)\s*bots?/i);
+  if(m)return m[1]+' players · '+m[2]+' bots';
+  m=info.match(/(\d+)\s*\/\s*(\d+)\s*players/i);
+  if(m)return m[1]+'/'+m[2]+' players';
+  return null;
+}
 async function refresh(){
   const r=await api('/api/status'); if(r.status===401){ $('#login').classList.remove('hide'); $('#app').classList.add('hide'); return; }
   const d=await r.json();
@@ -304,6 +335,13 @@ async function refresh(){
   if(v.SV_PW!=null)$('#svpw').value=v.SV_PW;
   if(v.RCON_PW!=null)$('#rcpw').value=v.RCON_PW;
   $('#conntext').textContent='connect '+location.hostname+':'+(v.PORT||'27015')+(v.SV_PW?'; password '+v.SV_PW:'');
+  // status tiles
+  $('#stStatus').textContent=d.running?'Online':'Offline';
+  $('#stIcon').className='stat-ic '+(d.running?'ic-green':'ic-red');
+  $('#stMap').textContent=v.MAP||'—';
+  $('#stMode').textContent=modeName(v.GAME_TYPE,v.GAME_MODE);
+  const pl=parsePlayers(d.info);
+  $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—';
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
   appendCout('<span class="ln info">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
