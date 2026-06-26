@@ -375,18 +375,22 @@ async function saveSettings(restart){ const [gt,gm]=$('#mode').value.split(',');
 async function liveMap(){ const r=await api('/api/map',{method:'POST',body:JSON.stringify({map:$('#map').value})}); const d=await r.json();
   appendCout('<span class="ln ok">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 
-// ---- workshop map (saves + restarts directly onto the map) ----
+// ---- workshop map: load LIVE via RCON (server stays up, no boot hang) ----
 function extractWsId(s){ const m=(s||'').match(/(\d{6,})/); return m?m[1]:''; }
 async function loadWorkshop(){
   const id=extractWsId($('#ws').value);
   const msg=$('#wsmsg');
   if(!id){ msg.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>Enter a valid Workshop ID or URL.'; return; }
-  msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Restarting server on workshop map '+id+'… (first load may take a minute to download)';
-  const r=await api('/api/settings',{method:'POST',body:JSON.stringify({WORKSHOP:id,_restart:true})}); const d=await r.json();
-  appendCout('<span class="ln ok">[workshop] booting on '+esc(id)+' — '+esc(d.out||'')+'</span>');
-  msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Restarting on workshop map '+id+'. Watch Live Logs / status tile.';
-  // poll a few times while it downloads + boots
-  let n=0; const t=setInterval(()=>{ refresh(); loadPreview(); if(++n>6) clearInterval(t); }, 4000);
+  msg.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Switching to workshop map '+id+' (live)…';
+  const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd:'host_workshop_map '+id})}); const d=await r.json();
+  if(d.ok){
+    appendCout('<span class="ln ok">[workshop] host_workshop_map '+esc(id)+'</span>'+(d.out?'<span class="ln">'+esc(d.out)+'</span>':''));
+    msg.innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Loading map '+id+' — watch Live Logs, then connect.';
+  } else {
+    appendCout('<span class="ln err">[workshop] '+esc(d.error||'failed')+'</span>');
+    msg.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>'+esc(d.error||'Failed — is the server running?');
+  }
+  let n=0; const t=setInterval(()=>{ refresh(); loadPreview(); if(++n>5) clearInterval(t); }, 4000);
 }
 
 // ---- boot ----
