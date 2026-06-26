@@ -292,6 +292,42 @@ app.get('/api/logs', requireAuth, async (req, res) => {
   res.json({ ok: true, out: r.out });
 });
 
+// ---------- PUBLIC (no auth) read-only status ----------
+const wsInfoCache = {};
+async function cachedWsInfo(id) { if (wsInfoCache[id]) return wsInfoCache[id]; const i = await steamWorkshopInfo(id); wsInfoCache[id] = i; return i; }
+function parsePlayersServer(info) {
+  if (!info) return null;
+  let m = info.match(/players\s*:\s*(\d+)\s*humans?,\s*(\d+)\s*bots?/i);
+  if (m) return { humans: +m[1], bots: +m[2] };
+  m = info.match(/(\d+)\s*\/\s*(\d+)\s*players/i);
+  if (m) return { humans: +m[1], max: +m[2], bots: 0 };
+  return null;
+}
+
+app.get('/api/public', async (req, res) => {
+  const active = await sh(`systemctl is-active ${SERVICE}`);
+  const running = active.out.trim() === 'active';
+  const v = readVars();
+  const isWs = !!(liveMap && liveMap.indexOf('workshop') === 0);
+  const wsId = isWs ? liveMap.replace(/\D/g, '') : '';
+  let players = null, mapInfo = null;
+  if (running) { try { players = parsePlayersServer(await rconExec('status')); } catch (e) {} }
+  if (wsId) { try { mapInfo = await cachedWsInfo(wsId); } catch (e) {} }
+  res.json({
+    running,
+    port: v.PORT || '27015',
+    password: v.SV_PW || '',
+    mapName: liveMap || v.MAP || '',
+    isWorkshop: isWs,
+    mapInfo, // {title, preview, url} or null
+    game_type: v.GAME_TYPE, game_mode: v.GAME_MODE,
+    players,
+  });
+});
+
+// serve the public page at a clean path too
+app.get('/status', (req, res) => res.sendFile(path.join(__dirname, 'public', 'status.html')));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PANEL_PORT, () => console.log(`CS2 panel listening on http://0.0.0.0:${PANEL_PORT}`));
