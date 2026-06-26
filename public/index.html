@@ -263,14 +263,7 @@
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('noclip')">Noclip</button>
           </div>
           <div class="lbl mb-1"><i class="fa-solid fa-gun me-1"></i>Give weapon</div>
-          <div class="d-flex flex-wrap gap-1 mb-2">
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_ak47')">AK-47</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_m4a1_silencer')">M4</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_awp')">AWP</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_deagle')">Deagle</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_hegrenade; give weapon_flashbang; give weapon_smokegrenade; give weapon_molotov; give weapon_decoy')">Nades</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('give weapon_knife')">Knife</button>
-          </div>
+          <div id="giveBtns" class="mb-2"></div>
           <div class="lbl mb-1"><i class="fa-solid fa-gears me-1"></i>Match</div>
           <div class="d-flex flex-wrap gap-1">
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_restartgame 1')">Restart Round</button>
@@ -406,6 +399,30 @@ async function runCmd(){ const cmd=$('#cmd').value.trim(); if(!cmd)return; $('#c
   const r=await api('/api/rcon',{method:'POST',body:JSON.stringify({cmd})}); const d=await r.json();
   appendCout('<span class="ln">'+(esc(d.out)||'<span class="dim">(no output)</span>')+'</span>'); }
 function quick(c){ $('#cmd').value=c; runCmd(); }
+// weapon give buttons (rendered from this table)
+const WEAPONS={
+  Rifles:[['AK-47','ak47'],['M4A4','m4a1'],['M4A1-S','m4a1_silencer'],['AUG','aug'],['SG 553','sg556'],['Galil','galilar'],['FAMAS','famas']],
+  SMGs:[['P90','p90'],['MP9','mp9'],['MAC-10','mac10'],['MP7','mp7'],['MP5-SD','mp5sd'],['UMP-45','ump45'],['PP-Bizon','bizon']],
+  Snipers:[['AWP','awp'],['SSG 08','ssg08'],['SCAR-20','scar20'],['G3SG1','g3sg1']],
+  Pistols:[['Glock','glock'],['USP-S','usp_silencer'],['P2000','hkp2000'],['P250','p250'],['Five-SeveN','fiveseven'],['Tec-9','tec9'],['CZ75','cz75a'],['Dual Berettas','elite'],['Deagle','deagle'],['R8','revolver']],
+  Heavy:[['Nova','nova'],['XM1014','xm1014'],['MAG-7','mag7'],['Sawed-Off','sawedoff'],['M249','m249'],['Negev','negev']],
+};
+function renderGive(){
+  let h='';
+  for(const cat in WEAPONS){
+    h+='<div class="d-flex flex-wrap gap-1 mb-1 align-items-center"><span style="font-size:.64rem;font-weight:800;color:var(--text-secondary);min-width:52px">'+cat+'</span>';
+    h+=WEAPONS[cat].map(w=>`<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick('give weapon_${w[1]}')">${w[0]}</button>`).join('');
+    h+='</div>';
+  }
+  h+='<div class="d-flex flex-wrap gap-1 align-items-center"><span style="font-size:.64rem;font-weight:800;color:var(--text-secondary);min-width:52px">Other</span>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_hegrenade; give weapon_flashbang; give weapon_smokegrenade; give weapon_molotov; give weapon_decoy\')">All Nades</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give item_assaultsuit\')">Armor+Helmet</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_taser\')">Zeus</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_knife\')">Knife</button></div>';
+  $('#giveBtns').innerHTML=h;
+}
+renderGive();
+
 async function practiceSetup(){
   const cmds='sv_cheats 1; sv_infinite_ammo 1; ammo_grenade_limit_total 5; mp_buy_anywhere 1; mp_buytime 9999; '+
     'mp_maxmoney 60000; mp_startmoney 60000; mp_freezetime 0; mp_roundtime 60; mp_roundtime_defuse 60; '+
