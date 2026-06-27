@@ -281,12 +281,13 @@ app.get('/api/status', requireAuth, async (req, res) => {
   const running = active.out.trim() === 'active';
   if (!running) { liveMap = null; lastStartStamp = null; }
   else await detectRestart();
-  let info = '', a2s = null;
+  let info = '', a2s = null, counts = null;
   if (running) {
     try { a2s = await a2sInfo(); } catch (e) {}
     try { info = await rconExec('status'); } catch (e) { info = '(server up, RCON not ready: ' + e.message + ')'; }
+    counts = parsePlayersServer(info); // accurate humans/bots from the "players :" line
   }
-  res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap, a2s });
+  res.json({ running, state: active.out.trim(), vars: readVars(), info, liveMap, a2s, counts });
 });
 
 // Start / stop / restart
@@ -471,8 +472,8 @@ app.get('/api/public', async (req, res) => {
   let players = null, mapInfo = null, a2s = null;
   if (running) {
     try { a2s = await a2sInfo(); } catch (e) {}
-    if (a2s) players = { humans: a2s.players, bots: a2s.bots, max: a2s.maxplayers };
-    else { try { players = parsePlayersServer(await rconExec('status')); } catch (e) {} }
+    try { const c = parsePlayersServer(await rconExec('status')); if (c) players = { humans: c.humans, bots: c.bots }; } catch (e) {}
+    if (!players && a2s) players = { humans: Math.max(0, a2s.players - a2s.bots), bots: a2s.bots };
   }
   if (wsId) { try { mapInfo = await cachedWsInfo(wsId); } catch (e) {} }
   res.json({

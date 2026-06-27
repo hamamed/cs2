@@ -507,7 +507,8 @@ async function refresh(){
   $('#stMode').textContent = isWs ? 'Custom (Workshop)' : modeName(v.GAME_TYPE,v.GAME_MODE);
   if(isWs){ const id=wsTag.replace(/\D/g,''); const info=await wsInfo(id); paintCurMap(info, wsTag); }
   else { paintCurMap(null, (d.a2s&&d.a2s.map) || curMap || (v.MAP||'—')); }
-  if(d.a2s){ $('#stPlayers').textContent = d.a2s.players+' players · '+d.a2s.bots+' bots'; }
+  if(d.counts){ $('#stPlayers').textContent = d.counts.humans+' players · '+d.counts.bots+' bots'; }
+  else if(d.a2s){ $('#stPlayers').textContent = Math.max(0,d.a2s.players-d.a2s.bots)+' players · '+d.a2s.bots+' bots'; }
   else { const pl=parsePlayers(d.info); $('#stPlayers').textContent = d.running ? (pl||'0 players') : '—'; }
 }
 async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON.stringify({action:a})}); const d=await r.json();
