@@ -456,7 +456,6 @@ function renderMapPicker(){
   $('#mapPicker').innerHTML=PICKER_MAPS.map(m=>`<div class="map-card" data-map="${m}" onclick="pickMap('${m}')" title="Switch to ${m}"><img src="${mapImg(m)}" alt="" onerror="this.style.opacity=.2"><div class="mc-name">${m.replace('de_','')}</div></div>`).join('');
 }
 function pickMap(m){ $('#map').value=m; document.querySelectorAll('.map-card').forEach(c=>c.classList.toggle('active',c.dataset.map===m)); liveMap(); }
-renderMapPicker();
 
 // ---- copy connect ----
 function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr');
@@ -650,6 +649,7 @@ function renderLibrary(maps){ const grid=$('#wsLibrary'); maps.forEach(m=>wsCach
     </div>`).join(''); }
 
 // ---- boot ----
+renderMapPicker();
 api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); }});
 setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); } }, 8000);
 </script>
