@@ -45,6 +45,16 @@
   .steambtn{display:inline-flex;align-items:center;gap:8px;background:#1b2838;color:#fff;border-radius:12px;padding:10px 16px;font-weight:800;text-decoration:none}
   .steambtn:hover{background:#2a3f5a;color:#fff}
   a.maplink{color:inherit;text-decoration:none}
+  .plist{display:flex;flex-direction:column;gap:6px}
+  .prow{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px}
+  .prow .pav{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;background:var(--accent-soft);color:var(--accent);font-size:.8rem}
+  .prow.bot .pav{background:#fff3d6;color:var(--gold)}
+  .prow .pname{flex:1;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .bdg{font-size:.62rem;font-weight:900;color:var(--gold);background:#fff3d6;border-radius:7px;padding:2px 7px}
+  [data-bs-theme="dark"] .prow.bot .pav,[data-bs-theme="dark"] .prow .bdg{background:#332a10}
+  .seclbl{font-weight:800;font-size:.72rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 8px}
+  .adminlink{color:var(--text-secondary);font-weight:800;text-decoration:none;font-size:.85rem}
+  .adminlink:hover{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -71,9 +81,12 @@
         <i class="fa-solid fa-link me-1"></i>Connect — paste in the CS2 console (press <kbd>~</kbd>)</label>
       <div class="connbox mb-2"><code id="conn">…</code><button class="copy" id="copyBtn" onclick="copyConn()"><i class="fa-solid fa-copy"></i> Copy</button></div>
       <a class="steambtn" id="steamConnect"><i class="fa-brands fa-steam"></i> Join via Steam</a>
+
+      <div id="plistWrap" style="margin-top:18px"></div>
     </div>
   </div>
-  <p class="text-center" style="color:var(--text-secondary);font-weight:700;font-size:.8rem">Auto-refreshes every 10s · read-only</p>
+  <p class="text-center mb-1" style="color:var(--text-secondary);font-weight:700;font-size:.8rem">Auto-refreshes every 10s · read-only</p>
+  <p class="text-center"><a class="adminlink" href="/admin"><i class="fa-solid fa-lock me-1"></i>Admin login</a></p>
 </div>
 
 <script>
@@ -117,6 +130,15 @@ async function load(){
   $('#conn').textContent=connStr;
   $('#steamConnect').href='steam://connect/'+host+':'+(d.port||'27015')+(d.password?'/'+d.password:'');
   const now=new Date(); $('#updated').textContent='Updated '+now.toLocaleTimeString();
+
+  // inline player list
+  const pl=d.playerList||[]; const wrap=$('#plistWrap');
+  if(d.running && pl.length){
+    wrap.innerHTML='<div class="seclbl"><i class="fa-solid fa-users me-1"></i>On the server now</div><div class="plist">'+
+      pl.map(p=>`<div class="prow ${p.bot?'bot':''}"><span class="pav"><i class="fa-solid fa-${p.bot?'robot':'user'}"></i></span><span class="pname">${esc(p.name||'Player')}</span>${p.bot?'<span class="bdg">BOT</span>':''}</div>`).join('')+'</div>';
+  } else if(d.running){
+    wrap.innerHTML='<div class="seclbl"><i class="fa-solid fa-users me-1"></i>On the server now</div><div class="prow" style="justify-content:center;color:var(--text-secondary)"><i class="fa-solid fa-user-slash me-2"></i>Empty — be the first to join!</div>';
+  } else { wrap.innerHTML=''; }
 }
 function copyConn(){
   const b=$('#copyBtn');

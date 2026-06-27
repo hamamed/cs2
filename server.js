@@ -469,10 +469,13 @@ app.get('/api/public', async (req, res) => {
   const v = readVars();
   const isWs = !!(liveMap && liveMap.indexOf('workshop') === 0);
   const wsId = isWs ? liveMap.replace(/\D/g, '') : '';
-  let players = null, mapInfo = null, a2s = null;
+  let players = null, mapInfo = null, a2s = null, playerList = [];
   if (running) {
     try { a2s = await a2sInfo(); } catch (e) {}
-    try { const c = parsePlayersServer(await rconExec('status')); if (c) players = { humans: c.humans, bots: c.bots }; } catch (e) {}
+    let statusTxt = '';
+    try { statusTxt = await rconExec('status'); } catch (e) {}
+    const c = parsePlayersServer(statusTxt); if (c) players = { humans: c.humans, bots: c.bots };
+    const parsed = parseStatusPlayers(statusTxt); if (parsed) playerList = parsed.map(p => ({ name: p.name, bot: p.bot }));
     if (!players && a2s) players = { humans: Math.max(0, a2s.players - a2s.bots), bots: a2s.bots };
   }
   if (wsId) { try { mapInfo = await cachedWsInfo(wsId); } catch (e) {} }
@@ -484,13 +487,14 @@ app.get('/api/public', async (req, res) => {
     isWorkshop: isWs,
     mapInfo, // {title, preview, url} or null
     game_type: v.GAME_TYPE, game_mode: v.GAME_MODE,
-    players,
+    players, playerList,
   });
 });
 
-// serve the public page at a clean path too
+// Root = public read-only status page. Admin panel lives at /admin.
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'status.html')));
 app.get('/status', (req, res) => res.sendFile(path.join(__dirname, 'public', 'status.html')));
-
-app.use(express.static(path.join(__dirname, 'public')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 app.listen(PANEL_PORT, () => console.log(`CS2 panel listening on http://0.0.0.0:${PANEL_PORT}`));
