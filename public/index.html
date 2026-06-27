@@ -376,8 +376,16 @@ async function api(p,o){ return fetch(p, Object.assign({headers:{'Content-Type':
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 let loadedMap = null;   // tracks a map loaded live (workshop / changelevel) until next restart
 
-(()=>{ const ic=['fa-crosshairs','fa-bomb','fa-gun','fa-shield-halved','fa-trophy','fa-skull','fa-fire','fa-bullseye'];
-  let h=''; for(let i=0;i<120;i++) h+=`<i class="fa-solid ${ic[i%ic.length]}"></i>`; $('#fap').innerHTML=h; })();
+function fillPattern(){
+  const ic=['fa-crosshairs','fa-bomb','fa-gun','fa-shield-halved','fa-trophy','fa-skull','fa-fire','fa-bullseye'];
+  const cell=58; // approx px per icon cell (font size + gap)
+  const cols=Math.ceil(window.innerWidth/cell)+1, rows=Math.ceil(window.innerHeight/cell)+1;
+  const count=cols*rows;
+  let h=''; for(let i=0;i<count;i++) h+=`<i class="fa-solid ${ic[i%ic.length]}"></i>`;
+  $('#fap').innerHTML=h;
+}
+fillPattern();
+window.addEventListener('resize',fillPattern);
 
 function toggleTheme(){ const h=document.documentElement; const t=h.getAttribute('data-bs-theme')==='dark'?'light':'dark';
   h.setAttribute('data-bs-theme',t); try{localStorage.setItem('cs2theme',t)}catch(e){} }
