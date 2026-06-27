@@ -74,6 +74,24 @@
   .pname{flex:1;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pscore{font-weight:800;color:var(--accent);font-size:.85rem}
   .ptime{font-family:"JetBrains Mono",monospace;font-size:.78rem;color:var(--text-secondary);min-width:48px;text-align:right}
+  .prow .kick{border:none;border-radius:9px;background:#fdecee;color:var(--red);font-weight:800;font-size:.72rem;padding:5px 9px;cursor:pointer}
+  .prow .kick:hover{background:var(--red);color:#fff}
+  [data-bs-theme="dark"] .prow .kick{background:#3a1a1f}
+
+  /* health bars */
+  .hbar{height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+  .hbar span{display:block;height:100%;border-radius:6px;transition:width .4s}
+  .hgood{background:var(--green)} .hwarn{background:var(--gold)} .hbad{background:var(--red)}
+  .hlabel{display:flex;justify-content:space-between;font-weight:800;font-size:.85rem;margin-bottom:5px}
+  .hlabel .pct{font-family:"JetBrains Mono",monospace}
+
+  /* visual map picker */
+  .map-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:8px}
+  .map-card{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:.12s;background:#0c0c0c}
+  .map-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+  .map-card.active{border-color:var(--accent)}
+  .map-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+  .map-card .mc-name{position:absolute;left:0;right:0;bottom:0;padding:5px 8px;font-weight:800;font-size:.78rem;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.8))}
 
   .btn-accent{background:var(--accent);border:none;color:#fff;font-weight:800;border-radius:12px;padding:.6rem 1.1rem;
     box-shadow:0 6px 16px rgba(31,131,255,.28);transition:transform .08s,box-shadow .2s,background .2s}
@@ -182,6 +200,25 @@
       </div>
     </div>
 
+    <!-- HEALTH -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head"><span class="head-icon ic-teal"><i class="fa-solid fa-heart-pulse"></i></span><h6>Server Health</h6>
+          <span class="ms-auto" id="diskWarn"></span></div>
+        <div class="p-3 p-md-4">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-microchip me-1"></i>CPU</span><span class="pct" id="hCpuP">—</span></div><div class="hbar"><span id="hCpu" class="hgood" style="width:0"></span></div></div>
+            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-memory me-1"></i>RAM</span><span class="pct" id="hMemP">—</span></div><div class="hbar"><span id="hMem" class="hgood" style="width:0"></span></div></div>
+            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-hard-drive me-1"></i>Disk</span><span class="pct" id="hDiskP">—</span></div><div class="hbar"><span id="hDisk" class="hgood" style="width:0"></span></div></div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+            <button class="btn-soft" onclick="clearDownloads()"><i class="fa-solid fa-broom me-1"></i> Clear workshop downloads</button>
+            <span class="hint" id="diskInfo"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- POWER -->
     <div class="col-12">
       <div class="wc-card">
@@ -227,6 +264,9 @@
             <button class="btn-soft" onclick="saveSettings(false)"><i class="fa-solid fa-floppy-disk me-1"></i> Save only</button>
             <button class="btn-soft" onclick="liveMap()"><i class="fa-solid fa-bolt me-1"></i> Change Map now</button>
           </div>
+
+          <label class="lbl mt-3"><i class="fa-solid fa-images me-1"></i>Quick switch map — click to change instantly</label>
+          <div class="map-grid" id="mapPicker"></div>
 
           <div class="form-check form-switch mt-3 d-flex align-items-center gap-2" style="padding-left:2.6em">
             <input class="form-check-input" type="checkbox" id="cooldownSwitch" checked onchange="toggleCooldown()" style="cursor:pointer">
@@ -374,17 +414,49 @@ async function loadPlayers(){
   let d; try{ d=await (await api('/api/players')).json(); }catch(e){ b.innerHTML='<div class="text-secondary fw-bold py-2">Server offline.</div>'; return; }
   if(!d.ok){ b.innerHTML='<div class="text-secondary fw-bold py-2">'+esc(d.error||'No players / server offline.')+'</div>'; return; }
   if(!d.players.length){ b.innerHTML='<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-user-slash me-1"></i>No players connected.</div>'; return; }
-  // A2S can't flag bots; mark the last d.bots entries (bots connect after humans typically) as a best-effort hint
-  const botCount = d.bots||0; const n=d.players.length;
+  const fromStatus = d.source==='status'; const botCount=d.bots||0; const n=d.players.length;
   const rows=d.players.map((p,i)=>{
-    const isBot = i >= (n-botCount);
+    const isBot = fromStatus ? p.bot : (i >= (n-botCount));
+    const kickBtn = (!isBot || p.userid) ? `<button class="kick" onclick='kickPlayer(${JSON.stringify(p.userid||null)},${JSON.stringify(p.name||"")})'>Kick</button>` : '';
+    const meta = fromStatus ? '' : `<span class="pscore">${p.score} pts</span><span class="ptime">${fmtDur(p.duration)}</span>`;
     return `<div class="prow ${isBot?'bot':''}"><span class="pav"><i class="fa-solid ${isBot?'fa-robot':'fa-user'}"></i></span>`+
-      `<span class="pname">${esc(p.name||'(connecting)')}</span><span class="pscore">${p.score} pts</span>`+
-      `<span class="ptime">${fmtDur(p.duration)}</span></div>`;
+      `<span class="pname">${esc(p.name||'(connecting)')}</span>${meta}${kickBtn}</div>`;
   }).join('');
-  b.innerHTML='<div class="lbl mb-2">'+n+' connected'+(d.bots!=null?' · ~'+botCount+' bots':'')+'</div><div class="plist">'+rows+'</div>';
+  const note = fromStatus ? '' : ' <span style="font-weight:600;opacity:.7">(names hidden by CS2 — counts only)</span>';
+  b.innerHTML='<div class="lbl mb-2">'+n+' connected'+(d.bots!=null?' · '+botCount+' bots':'')+note+'</div><div class="plist">'+rows+'</div>';
+}
+async function kickPlayer(userid, name){
+  if(!confirm('Kick '+(name||'this player')+'?')) return;
+  const r=await api('/api/kick',{method:'POST',body:JSON.stringify({userid,name})}); const d=await r.json();
+  appendCout('<span class="ln '+(d.ok?'ok':'err')+'">kick '+esc(name||userid||'')+(d.ok?'':' — '+esc(d.error))+'</span>');
+  setTimeout(loadPlayers,800);
 }
 document.addEventListener('DOMContentLoaded',()=>{ const m=$('#playersModal'); if(m) m.addEventListener('hidden.bs.modal',()=>clearInterval(playersTimer)); });
+
+// ---- server health ----
+function hbar(el,pct){ const e=$(el); e.style.width=Math.max(0,Math.min(100,pct||0))+'%'; e.className=(pct>=85?'hbad':pct>=70?'hwarn':'hgood'); }
+async function loadHealth(){
+  let d; try{ d=await (await api('/api/health')).json(); }catch(e){ return; }
+  if(!d.ok) return;
+  $('#hCpuP').textContent=d.cpuPct+'%  ('+d.load+' load)'; hbar('#hCpu',d.cpuPct);
+  $('#hMemP').textContent=d.memPct+'%  ('+d.memUsedGB+'/'+d.memTotalGB+'GB)'; hbar('#hMem',d.memPct);
+  $('#hDiskP').textContent=(d.diskPct||0)+'%  ('+d.diskUsed+'/'+d.diskTotal+')'; hbar('#hDisk',d.diskPct);
+  $('#diskWarn').innerHTML = d.diskPct>=85 ? '<span class="pill-off status-pill" style="font-size:.78rem"><i class="fa-solid fa-triangle-exclamation"></i> Disk '+d.diskPct+'% — clean up!</span>' : '';
+}
+async function clearDownloads(){
+  $('#diskInfo').innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Clearing…';
+  const r=await api('/api/cleardownloads',{method:'POST'}); const d=await r.json();
+  $('#diskInfo').innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Done. Disk now '+(d.diskPct||'?')+'% ('+d.diskUsed+'/'+d.diskTotal+').';
+  loadHealth();
+}
+
+// ---- visual map picker ----
+const PICKER_MAPS=['de_dust2','de_inferno','de_mirage','de_nuke','de_overpass','de_ancient','de_vertigo','de_anubis','de_train'];
+function renderMapPicker(){
+  $('#mapPicker').innerHTML=PICKER_MAPS.map(m=>`<div class="map-card" data-map="${m}" onclick="pickMap('${m}')" title="Switch to ${m}"><img src="${mapImg(m)}" alt="" onerror="this.style.opacity=.2"><div class="mc-name">${m.replace('de_','')}</div></div>`).join('');
+}
+function pickMap(m){ $('#map').value=m; document.querySelectorAll('.map-card').forEach(c=>c.classList.toggle('active',c.dataset.map===m)); liveMap(); }
+renderMapPicker();
 
 // ---- copy connect ----
 function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr');
@@ -395,7 +467,7 @@ function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr'
 
 // ---- auth ----
 async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
-  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); } else $('#lerr').textContent='Wrong username or password.'; }
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); } else $('#lerr').textContent='Wrong username or password.'; }
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
@@ -577,8 +649,8 @@ function renderLibrary(maps){ const grid=$('#wsLibrary'); maps.forEach(m=>wsCach
     </div>`).join(''); }
 
 // ---- boot ----
-api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); }});
-setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); } }, 8000);
+api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); }});
+setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); } }, 8000);
 </script>
 </body>
 </html>

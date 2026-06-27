@@ -8,6 +8,7 @@ const net = require('net');
 const path = require('path');
 const https = require('https');
 const dgram = require('dgram');
+const os = require('os');
 
 // ---------- Config (override via environment in the systemd unit) ----------
 const PANEL_USER = process.env.PANEL_USER || 'admin';
@@ -368,12 +369,78 @@ app.post('/api/saved/remove', requireAuth, (req, res) => {
   res.json({ ok: true, maps });
 });
 
-// Player list (names, score, time online) + bot count
+// Parse the RCON `status` player table (gives real names + userid + BOT flag)
+function parseStatusPlayers(info) {
+  if (!info) return null;
+  const out = [];
+  for (const ln of info.split(/\r?\n/)) {
+    if (!/["']/.test(ln)) continue;                 // player rows have a quoted name
+    if (/hostname|version|players\s*:|map\s*:|udp\/ip|spawngroup/i.test(ln)) continue;
+    const nameM = ln.match(/["']([^"']{1,32})["']/);
+    if (!nameM) continue;
+    const idM = ln.match(/^\s*#?\s*(\d+)/);
+    out.push({ userid: idM ? idM[1] : null, name: nameM[1], bot: /\bBOT\b/i.test(ln) });
+  }
+  return out.length ? out : null;
+}
+
+// Player list — prefer RCON status (real names + kickable userids), fall back to A2S
 app.get('/api/players', requireAuth, async (req, res) => {
+  let a2s = null;
+  try { a2s = await a2sInfo(); } catch (e) {}
   try {
-    const [players, info] = await Promise.all([a2sPlayers(), a2sInfo().catch(() => null)]);
-    res.json({ ok: true, players, bots: info ? info.bots : null, total: info ? info.players : players.length });
+    const parsed = parseStatusPlayers(await rconExec('status'));
+    if (parsed && parsed.length) {
+      return res.json({ ok: true, source: 'status', players: parsed, bots: parsed.filter(p => p.bot).length, total: parsed.length });
+    }
+  } catch (e) {}
+  try {
+    const list = await a2sPlayers();
+    res.json({ ok: true, source: 'a2s', players: list.map(p => ({ name: p.name, score: p.score, duration: p.duration })), bots: a2s ? a2s.bots : null, total: a2s ? a2s.players : list.length });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Kick / ban a player
+app.post('/api/kick', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const cmd = b.userid ? ('kickid ' + String(b.userid).replace(/\D/g, ''))
+    : ('kick "' + String(b.name || '').replace(/["\r\n;]/g, '') + '"');
+  try { res.json({ ok: true, out: await rconExec(cmd) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+app.post('/api/ban', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  if (!b.userid) return res.status(400).json({ error: 'need userid' });
+  const mins = parseInt(b.minutes || '0', 10) || 0;
+  try { res.json({ ok: true, out: await rconExec('banid ' + mins + ' ' + String(b.userid).replace(/\D/g, '') + ' kick') }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Server health: CPU / RAM / disk
+app.get('/api/health', requireAuth, async (req, res) => {
+  let diskPct = null, diskUsed = '', diskTotal = '';
+  try { const d = (await sh('df -h /')).out.trim().split('\n').pop().split(/\s+/); diskTotal = d[1]; diskUsed = d[2]; diskPct = parseInt(d[4]); } catch (e) {}
+  let memPct = null, memUsed = 0, memTotal = os.totalmem();
+  try {
+    const line = (await sh('free -b')).out.split('\n').find(l => /^Mem:/.test(l)).split(/\s+/);
+    memTotal = +line[1]; const avail = +line[6]; memUsed = memTotal - (avail || (memTotal - os.freemem()));
+  } catch (e) { memUsed = memTotal - os.freemem(); }
+  memPct = Math.round(memUsed / memTotal * 100);
+  const cpus = os.cpus().length, load = os.loadavg()[0];
+  res.json({
+    ok: true, cpuPct: Math.min(100, Math.round(load / cpus * 100)), load: +load.toFixed(2), cpus,
+    memPct, memUsedGB: (memUsed / 1073741824).toFixed(1), memTotalGB: (memTotal / 1073741824).toFixed(1),
+    diskPct, diskUsed, diskTotal,
+  });
+});
+
+// One-click: clear old workshop downloads + trim logs to free disk
+app.post('/api/cleardownloads', requireAuth, async (req, res) => {
+  await sh('rm -rf /home/steam/cs2_server/steamapps/workshop/downloads/* 2>/dev/null');
+  await sh('rm -rf /home/steam/.steam/steam/steamapps/workshop/downloads/* 2>/dev/null');
+  await sh('journalctl --vacuum-size=200M >/dev/null 2>&1');
+  let diskPct = null, diskUsed = '', diskTotal = '';
+  try { const d = (await sh('df -h /')).out.trim().split('\n').pop().split(/\s+/); diskTotal = d[1]; diskUsed = d[2]; diskPct = parseInt(d[4]); } catch (e) {}
+  res.json({ ok: true, diskPct, diskUsed, diskTotal });
 });
 
 // Recent server logs
