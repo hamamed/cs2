@@ -320,7 +320,11 @@
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('god')">God</button>
             <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('noclip')">Noclip</button>
           </div>
-          <div class="lbl mb-1"><i class="fa-solid fa-gun me-1"></i>Give weapon</div>
+          <div class="lbl mb-1"><i class="fa-solid fa-gun me-1"></i>Give weapon to player</div>
+          <div class="d-flex gap-2 mb-2 align-items-center">
+            <select id="giveTarget" class="form-select" style="max-width:260px"><option value="@all">@all (everyone)</option></select>
+            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="loadGiveTargets()" title="Refresh players"><i class="fa-solid fa-rotate"></i></button>
+          </div>
           <div id="giveBtns" class="mb-2"></div>
           <div class="lbl mb-1"><i class="fa-solid fa-gears me-1"></i>Match</div>
           <div class="d-flex flex-wrap gap-1">
@@ -474,7 +478,7 @@ function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr'
 
 // ---- auth ----
 async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
-  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); } else $('#lerr').textContent='Wrong username or password.'; }
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); } else $('#lerr').textContent='Wrong username or password.'; }
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
@@ -550,15 +554,33 @@ function renderGive(){
   let h='';
   for(const cat in WEAPONS){
     h+='<div class="d-flex flex-wrap gap-1 mb-1 align-items-center"><span style="font-size:.64rem;font-weight:800;color:var(--text-secondary);min-width:52px">'+cat+'</span>';
-    h+=WEAPONS[cat].map(w=>`<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick('give weapon_${w[1]}')">${w[0]}</button>`).join('');
+    h+=WEAPONS[cat].map(w=>`<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon('weapon_${w[1]}')">${w[0]}</button>`).join('');
     h+='</div>';
   }
   h+='<div class="d-flex flex-wrap gap-1 align-items-center"><span style="font-size:.64rem;font-weight:800;color:var(--text-secondary);min-width:52px">Other</span>'+
-     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_hegrenade; give weapon_flashbang; give weapon_smokegrenade; give weapon_molotov; give weapon_decoy\')">All Nades</button>'+
-     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give item_assaultsuit\')">Armor+Helmet</button>'+
-     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_taser\')">Zeus</button>'+
-     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="quick(\'give weapon_knife\')">Knife</button></div>';
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveNades()">All Nades</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'item_assaultsuit\')">Armor+Helmet</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'item_kevlar\')">Kevlar</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'weapon_taser\')">Zeus</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'weapon_healthshot\')">Healthshot</button>'+
+     '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'weapon_knife\')">Knife</button></div>';
   $('#giveBtns').innerHTML=h;
+}
+// give via the css_give plugin to the selected target
+function giveWeapon(item){ const t=$('#giveTarget').value||'@all'; quick('css_give '+t+' '+item); }
+function giveNades(){ const t=$('#giveTarget').value||'@all';
+  const c=['weapon_hegrenade','weapon_flashbang','weapon_smokegrenade','weapon_molotov','weapon_decoy'].map(w=>'css_give '+t+' '+w).join('; ');
+  quick(c); }
+async function loadGiveTargets(){
+  const sel=$('#giveTarget'); if(!sel) return; const prev=sel.value;
+  let d; try{ d=await (await api('/api/players')).json(); }catch(e){ return; }
+  let opts='<option value="@all">@all (everyone)</option>';
+  if(d.ok && d.players) d.players.forEach(p=>{
+    const val=p.userid?('#'+p.userid):(p.name||''); if(!val) return;
+    opts+=`<option value="${esc(val)}">${esc(p.name||val)}${p.bot?' (bot)':''}</option>`;
+  });
+  sel.innerHTML=opts;
+  if([...sel.options].some(o=>o.value===prev)) sel.value=prev;
 }
 renderGive();
 
@@ -658,8 +680,8 @@ function renderLibrary(maps){ const grid=$('#wsLibrary'); maps.forEach(m=>wsCach
 
 // ---- boot ----
 renderMapPicker();
-api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); }});
-setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); } }, 8000);
+api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); }});
+setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); loadGiveTargets(); } }, 8000);
 </script>
 </body>
 </html>
