@@ -85,6 +85,14 @@
   .hlabel{display:flex;justify-content:space-between;font-weight:800;font-size:.85rem;margin-bottom:5px}
   .hlabel .pct{font-family:"JetBrains Mono",monospace}
 
+  /* admin console tabs */
+  .ac-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .ac-tab{border:none;background:var(--surface-2);color:var(--text-secondary);font-weight:800;border-radius:11px;padding:9px 16px;cursor:pointer;font-size:.85rem;border:1px solid var(--line);transition:.12s}
+  .ac-tab:hover{color:var(--accent);border-color:var(--accent)}
+  .ac-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 5px 14px rgba(31,131,255,.3)}
+  .ac-panel{display:none;animation:fadein .15s ease}.ac-panel.active{display:block}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
   /* visual map picker */
   .map-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:8px}
   .map-card{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:.12s;background:#0c0c0c}
@@ -289,50 +297,93 @@
       </div>
     </div>
 
-    <!-- TWO BOXES: LOGS + CONSOLE -->
-    <div class="col-lg-6">
-      <div class="wc-card h-100">
+    <!-- LIVE LOGS -->
+    <div class="col-12">
+      <div class="wc-card">
         <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-scroll"></i></span><h6>Live Logs</h6>
           <span class="hint ms-auto"><i class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>click to expand</span></div>
         <div class="p-3">
           <div class="term-wrap clickable" data-bs-toggle="modal" data-bs-target="#logsModal" onclick="openLogs()" title="Open full logs">
-            <div class="term" id="logpreview" style="height:240px"><span class="ln dim">Loading latest logs…</span></div>
+            <div class="term" id="logpreview" style="height:180px"><span class="ln dim">Loading latest logs…</span></div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-6">
-      <div class="wc-card h-100">
-        <div class="card-head"><span class="head-icon ic-teal"><i class="fa-solid fa-terminal"></i></span><h6>RCON Console</h6></div>
-        <div class="p-3">
-          <div class="term-wrap mb-2"><div class="term" id="cout" style="height:155px"><span class="ln dim">Ready. Type a command below.</span></div></div>
-          <div class="input-group mb-2">
-            <input id="cmd" class="form-control" placeholder="bot_add | mp_restartgame 1 | changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
-            <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane"></i></button>
+    <!-- ADMIN CONSOLE -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head flex-wrap gap-2"><span class="head-icon ic-teal"><i class="fa-solid fa-terminal"></i></span><h6>Admin Console</h6>
+          <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="lbl mb-0"><i class="fa-solid fa-crosshairs me-1"></i>Target</span>
+            <select id="giveTarget" class="form-select" style="min-width:180px;max-width:240px" onchange="var t=document.getElementById('termTarget'); if(t)t.textContent=this.value"><option value="@all">@all (everyone)</option></select>
+            <button class="btn-soft py-1 px-2" onclick="loadGiveTargets()" title="Refresh players"><i class="fa-solid fa-rotate"></i></button>
           </div>
-          <div class="lbl mb-1"><i class="fa-solid fa-bullseye me-1"></i>Practice setup</div>
-          <div class="d-flex flex-wrap gap-1 mb-2">
-            <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="practiceSetup()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Practice ON</button>
-            <button class="btn-c c-red py-1 px-2" style="font-size:.78rem" onclick="practiceOff()"><i class="fa-solid fa-power-off me-1"></i>Practice OFF</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_cheats 1')">Cheats On</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_infinite_ammo 1')">Infinite Ammo</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('god')">God</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('noclip')">Noclip</button>
+        </div>
+        <div class="p-3 p-md-4">
+          <div class="ac-tabs mb-3">
+            <button class="ac-tab active" data-tab="weapons" onclick="acTab('weapons')"><i class="fa-solid fa-gun me-1"></i>Weapons</button>
+            <button class="ac-tab" data-tab="player" onclick="acTab('player')"><i class="fa-solid fa-user-gear me-1"></i>Player</button>
+            <button class="ac-tab" data-tab="match" onclick="acTab('match')"><i class="fa-solid fa-gears me-1"></i>Match</button>
+            <button class="ac-tab" data-tab="console" onclick="acTab('console')"><i class="fa-solid fa-keyboard me-1"></i>Console</button>
           </div>
-          <div class="lbl mb-1"><i class="fa-solid fa-gun me-1"></i>Give weapon to player</div>
-          <div class="d-flex gap-2 mb-2 align-items-center">
-            <select id="giveTarget" class="form-select" style="max-width:260px"><option value="@all">@all (everyone)</option></select>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="loadGiveTargets()" title="Refresh players"><i class="fa-solid fa-rotate"></i></button>
+
+          <div class="ac-panel active" id="tab-weapons"><div id="giveBtns"></div></div>
+
+          <div class="ac-panel" id="tab-player">
+            <div class="d-flex flex-wrap gap-1 mb-2">
+              <button class="btn-c c-green py-1 px-2" style="font-size:.78rem" onclick="adm('css_respawn')"><i class="fa-solid fa-heart me-1"></i>Respawn</button>
+              <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="adm('css_god')"><i class="fa-solid fa-shield-halved me-1"></i>God toggle</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm('css_noclip')">Noclip</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_hp','100')">Heal 100</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_hp','999999')">Heal max</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_armor','100')">Armor 100</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm('css_strip')">Strip</button>
+              <button class="btn-c c-red py-1 px-2" style="font-size:.78rem" onclick="adm('css_slay')"><i class="fa-solid fa-skull me-1"></i>Slay</button>
+            </div>
+            <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+              <span class="lbl mb-0 me-1">Team</span>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_team','ct')">CT</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_team','t')">T</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="adm2('css_team','spec')">Spectate</button>
+            </div>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <span class="lbl mb-0 me-1">Practice</span>
+              <button class="btn-c c-gold py-1 px-2" style="font-size:.78rem" onclick="practiceSetup()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>ON</button>
+              <button class="btn-c c-red py-1 px-2" style="font-size:.78rem" onclick="practiceOff()"><i class="fa-solid fa-power-off me-1"></i>OFF</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_cheats 1')">Cheats On</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('sv_infinite_ammo 1')">Infinite Ammo</button>
+            </div>
           </div>
-          <div id="giveBtns" class="mb-2"></div>
-          <div class="lbl mb-1"><i class="fa-solid fa-gears me-1"></i>Match</div>
-          <div class="d-flex flex-wrap gap-1">
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_restartgame 1')">Restart Round</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add')">Add Bot</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_kick')">Kick Bots</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_warmup_end')">End Warmup</button>
-            <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('status')">Status</button>
+
+          <div class="ac-panel" id="tab-match">
+            <div class="d-flex flex-wrap gap-1">
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_restartgame 1')">Restart Round</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_warmup_end')">End Warmup</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_warmup_start')">Start Warmup</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add')">Add Bot</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add_ct')">Add CT Bot</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_add_t')">Add T Bot</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('bot_kick')">Kick Bots</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_swapteams')">Swap Teams</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_pause_match')">Pause</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_unpause_match')">Unpause</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('status')">Status</button>
+            </div>
+          </div>
+
+          <div class="ac-panel" id="tab-console">
+            <div class="input-group">
+              <input id="cmd" class="form-control" placeholder="raw RCON command, e.g. changelevel de_nuke" onkeydown="if(event.key==='Enter')runCmd()">
+              <button class="btn-accent" onclick="runCmd()"><i class="fa-solid fa-paper-plane me-1"></i>Send</button>
+            </div>
+          </div>
+
+          <div class="term-wrap mt-3">
+            <div class="term-bar"><span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
+              <span class="term-title">rcon@cs2 · target <span id="termTarget">@all</span></span><span class="spacer"></span>
+              <button class="term-btn" onclick="document.getElementById('cout').innerHTML=''">Clear</button></div>
+            <div class="term" id="cout" style="height:190px"><span class="ln dim">Ready. Pick a target, then click an action.</span></div>
           </div>
         </div>
       </div>
@@ -566,8 +617,14 @@ function renderGive(){
      '<button class="btn-soft py-1 px-2" style="font-size:.74rem" onclick="giveWeapon(\'weapon_knife\')">Knife</button></div>';
   $('#giveBtns').innerHTML=h;
 }
+// admin console tabs + commands (all routed to the selected target)
+function acTab(t){ document.querySelectorAll('.ac-panel').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.ac-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t)); const el=$('#tab-'+t); if(el)el.classList.add('active'); }
+function curTarget(){ return ($('#giveTarget')&&$('#giveTarget').value)||'@all'; }
+function adm(cmd){ quick(cmd+' '+curTarget()); }
+function adm2(cmd,val){ quick(cmd+' '+curTarget()+' '+val); }
+
 // give via the css_give plugin to the selected target
-function giveWeapon(item){ const t=$('#giveTarget').value||'@all'; quick('css_give '+t+' '+item); }
+function giveWeapon(item){ quick('css_give '+curTarget()+' '+item); }
 function giveNades(){ const t=$('#giveTarget').value||'@all';
   const c=['weapon_hegrenade','weapon_flashbang','weapon_smokegrenade','weapon_molotov','weapon_decoy'].map(w=>'css_give '+t+' '+w).join('; ');
   quick(c); }
