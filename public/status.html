@@ -83,6 +83,7 @@
       <a class="steambtn" id="steamConnect"><i class="fa-brands fa-steam"></i> Join via Steam</a>
 
       <div id="plistWrap" style="margin-top:18px"></div>
+      <div id="demoWrap" style="margin-top:18px"></div>
     </div>
   </div>
   <p class="text-center mb-1" style="color:var(--text-secondary);font-weight:700;font-size:.8rem">Auto-refreshes every 10s · read-only</p>
@@ -139,6 +140,15 @@ async function load(){
   } else if(d.running){
     wrap.innerHTML='<div class="seclbl"><i class="fa-solid fa-users me-1"></i>On the server now</div><div class="prow" style="justify-content:center;color:var(--text-secondary)"><i class="fa-solid fa-user-slash me-2"></i>Empty — be the first to join!</div>';
   } else { wrap.innerHTML=''; }
+
+  // approved demos (public downloads)
+  const dw=$('#demoWrap'); const demos=d.demos||[];
+  const fmtSize=b=> b<1048576?(b/1024).toFixed(0)+' KB': b<1073741824?(b/1048576).toFixed(1)+' MB':(b/1073741824).toFixed(2)+' GB';
+  if(demos.length){
+    dw.innerHTML='<div class="seclbl"><i class="fa-solid fa-film me-1"></i>Match demos</div><div class="plist">'+
+      demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span><span class="pname">${esc(f.name)}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text-secondary)">${fmtSize(f.size)}</span><a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/videos/${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a></div>`).join('')+'</div>'+
+      '<div style="color:var(--text-secondary);font-size:.75rem;font-weight:700;margin-top:6px">Play in CS2: put the .dem in your csgo folder, then <code>playdemo &lt;name&gt;</code></div>';
+  } else { dw.innerHTML=''; }
 }
 function copyConn(){
   const b=$('#copyBtn');

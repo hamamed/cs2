@@ -3,3 +3,4 @@ package-lock.json
 *.log
 .env
 saved-maps.json
+approved-demos.json

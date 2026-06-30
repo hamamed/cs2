@@ -531,10 +531,16 @@ document.addEventListener('DOMContentLoaded',()=>{ const m=$('#playersModal'); i
 
 // ---- demos / recordings ----
 function fmtSize(b){ if(b<1048576)return (b/1024).toFixed(0)+' KB'; if(b<1073741824)return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
-function demoRows(demos){ return '<div class="plist">'+demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
-  `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+
+function demoRows(demos){ return '<div class="plist">'+demos.map(f=>{
+  const appBtn = f.approved
+    ? `<button class="kick" style="background:#e4f8ee;color:var(--green)" onclick='approveDemo(${JSON.stringify(f.name)})' title="Public — click to unpublish"><i class="fa-solid fa-globe me-1"></i>Public</button>`
+    : `<button class="kick" style="background:var(--surface-2);color:var(--text-secondary)" onclick='approveDemo(${JSON.stringify(f.name)})' title="Approve for everyone"><i class="fa-solid fa-circle-check me-1"></i>Approve</button>`;
+  return `<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
+  `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+appBtn+
   `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a>`+
-  `<button class="kick" onclick='deleteDemo(${JSON.stringify(f.name)})' title="Delete recording"><i class="fa-solid fa-trash"></i></button></div>`).join('')+'</div>'; }
+  `<button class="kick" onclick='deleteDemo(${JSON.stringify(f.name)})' title="Delete recording"><i class="fa-solid fa-trash"></i></button></div>`; }).join('')+'</div>'; }
+async function approveDemo(name){ const r=await api('/api/demos/approve',{method:'POST',body:JSON.stringify({file:name})}); const d=await r.json();
+  if(d.ok){ loadDemos(); loadDemosInline(); } else alert(d.error||'Failed'); }
 async function deleteDemo(name){ if(!confirm('Delete '+name+'? This permanently removes the recording.')) return;
   const r=await api('/api/demos/delete',{method:'POST',body:JSON.stringify({file:name})}); const d=await r.json();
   if(d.ok){ loadDemos(); loadDemosInline(); } else alert(d.error||'Delete failed'); }

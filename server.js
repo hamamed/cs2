@@ -446,6 +446,10 @@ app.post('/api/cleardownloads', requireAuth, async (req, res) => {
 
 // Demos (GOTV recordings) — list + download
 const DEMO_DIRS = (process.env.DEMO_DIRS || '/home/steam/cs2_server/game/csgo,/home/steam/cs2_server/game/csgo/replays').split(',');
+// Approved demos = published publicly on the share page
+const APPROVED_FILE = process.env.APPROVED_FILE || path.join(__dirname, 'approved-demos.json');
+function readApproved() { try { return JSON.parse(fs.readFileSync(APPROVED_FILE, 'utf8')); } catch (e) { return []; } }
+function writeApproved(arr) { try { fs.writeFileSync(APPROVED_FILE, JSON.stringify(arr, null, 2)); } catch (e) {} }
 function listDemos() {
   const out = [];
   for (const dir of DEMO_DIRS) {
@@ -459,11 +463,24 @@ function listDemos() {
   }
   return out.sort((a, b) => b.mtime - a.mtime);
 }
-app.get('/api/demos', requireAuth, (req, res) => res.json({ ok: true, demos: listDemos() }));
-// Clean public URL for downloading a demo: /videos/<name>.dem  (only serves real .dem files)
+app.get('/api/demos', requireAuth, (req, res) => {
+  const ap = new Set(readApproved());
+  res.json({ ok: true, demos: listDemos().map(d => ({ ...d, approved: ap.has(d.name) })) });
+});
+// Toggle a demo's public-approved state
+app.post('/api/demos/approve', requireAuth, (req, res) => {
+  const name = String((req.body && req.body.file) || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
+  if (!name.toLowerCase().endsWith('.dem')) return res.status(400).json({ ok: false, error: 'bad file' });
+  let ap = readApproved();
+  if (ap.includes(name)) ap = ap.filter(x => x !== name); else ap.push(name);
+  writeApproved(ap);
+  res.json({ ok: true, approved: ap.includes(name) });
+});
+// Clean PUBLIC URL — only serves APPROVED demos: /videos/<name>.dem
 app.get('/videos/:file', (req, res) => {
   const name = String(req.params.file || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
   if (!name.toLowerCase().endsWith('.dem')) return res.status(400).end('bad file');
+  if (!readApproved().includes(name)) return res.status(403).end('This demo is not public.');
   const hit = listDemos().find(d => d.name === name);
   if (!hit) return res.status(404).end('not found');
   res.download(path.join(hit.dir, name));
@@ -480,8 +497,11 @@ app.post('/api/demos/delete', requireAuth, (req, res) => {
   if (!name.toLowerCase().endsWith('.dem')) return res.status(400).json({ ok: false, error: 'bad file' });
   const hit = listDemos().find(d => d.name === name);
   if (!hit) return res.status(404).json({ ok: false, error: 'not found' });
-  try { fs.unlinkSync(path.join(hit.dir, name)); res.json({ ok: true }); }
-  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  try {
+    fs.unlinkSync(path.join(hit.dir, name));
+    writeApproved(readApproved().filter(x => x !== name));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Recent server logs
@@ -528,6 +548,7 @@ app.get('/api/public', async (req, res) => {
     mapInfo, // {title, preview, url} or null
     game_type: v.GAME_TYPE, game_mode: v.GAME_MODE,
     players, playerList,
+    demos: (() => { const all = listDemos(); return readApproved().map(n => { const f = all.find(d => d.name === n); return f ? { name: n, size: f.size } : null; }).filter(Boolean); })(),
   });
 });
 
