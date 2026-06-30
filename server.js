@@ -475,6 +475,14 @@ app.get('/api/demos/download', requireAuth, (req, res) => {
   if (!hit) return res.status(404).end('not found');
   res.download(path.join(hit.dir, name));
 });
+app.post('/api/demos/delete', requireAuth, (req, res) => {
+  const name = String((req.body && req.body.file) || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
+  if (!name.toLowerCase().endsWith('.dem')) return res.status(400).json({ ok: false, error: 'bad file' });
+  const hit = listDemos().find(d => d.name === name);
+  if (!hit) return res.status(404).json({ ok: false, error: 'not found' });
+  try { fs.unlinkSync(path.join(hit.dir, name)); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 
 // Recent server logs
 app.get('/api/logs', requireAuth, async (req, res) => {

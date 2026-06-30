@@ -533,7 +533,11 @@ document.addEventListener('DOMContentLoaded',()=>{ const m=$('#playersModal'); i
 function fmtSize(b){ if(b<1048576)return (b/1024).toFixed(0)+' KB'; if(b<1073741824)return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
 function demoRows(demos){ return '<div class="plist">'+demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
   `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+
-  `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a></div>`).join('')+'</div>'; }
+  `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a>`+
+  `<button class="kick" onclick='deleteDemo(${JSON.stringify(f.name)})' title="Delete recording"><i class="fa-solid fa-trash"></i></button></div>`).join('')+'</div>'; }
+async function deleteDemo(name){ if(!confirm('Delete '+name+'? This permanently removes the recording.')) return;
+  const r=await api('/api/demos/delete',{method:'POST',body:JSON.stringify({file:name})}); const d=await r.json();
+  if(d.ok){ loadDemos(); loadDemosInline(); } else alert(d.error||'Delete failed'); }
 async function fetchDemos(){ try{ const d=await (await api('/api/demos')).json(); return d.ok?d.demos:[]; }catch(e){ return []; } }
 async function loadDemos(){ const d=await fetchDemos(); const el=$('#demosBody'); if(el) el.innerHTML = d.length? demoRows(d) : '<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-film me-1"></i>No demos yet.</div>'; }
 async function loadDemosInline(){ const el=$('#demosInline'); if(!el) return; const d=await fetchDemos();
