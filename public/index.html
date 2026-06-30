@@ -370,6 +370,12 @@
               <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('mp_unpause_match')">Unpause</button>
               <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('status')">Status</button>
             </div>
+            <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
+              <span class="lbl mb-0 me-1"><i class="fa-solid fa-video me-1"></i>Demos</span>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('tv_record manual_'+Date.now())">Start Recording</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('tv_stoprecord')">Stop Recording</button>
+              <button class="btn-accent py-1 px-2" style="font-size:.78rem" data-bs-toggle="modal" data-bs-target="#demosModal" onclick="loadDemos()"><i class="fa-solid fa-film me-1"></i>Browse &amp; Download</button>
+            </div>
           </div>
 
           <div class="ac-panel" id="tab-console">
@@ -402,6 +408,18 @@
         <button class="btn-soft ms-auto py-1 px-3" onclick="loadPlayers()"><i class="fa-solid fa-rotate"></i></button>
         <button class="btn-soft py-1 px-3" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="p-3" id="playersBody"><div class="text-secondary fw-bold py-2">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DEMOS MODAL ===== -->
+<div class="modal fade" id="demosModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:18px;background:var(--surface)">
+      <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-film"></i></span><h6 class="mb-0">Demos (GOTV recordings)</h6>
+        <button class="btn-soft ms-auto py-1 px-3" onclick="loadDemos()"><i class="fa-solid fa-rotate"></i></button>
+        <button class="btn-soft py-1 px-3" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="p-3" id="demosBody" style="max-height:60vh;overflow:auto"><div class="text-secondary fw-bold py-2">Loading…</div></div>
     </div>
   </div>
 </div>
@@ -495,6 +513,17 @@ async function kickPlayer(userid, name){
   setTimeout(loadPlayers,800);
 }
 document.addEventListener('DOMContentLoaded',()=>{ const m=$('#playersModal'); if(m) m.addEventListener('hidden.bs.modal',()=>clearInterval(playersTimer)); });
+
+// ---- demos ----
+function fmtSize(b){ if(b<1048576)return (b/1024).toFixed(0)+' KB'; if(b<1073741824)return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+async function loadDemos(){
+  const b=$('#demosBody');
+  let d; try{ d=await (await api('/api/demos')).json(); }catch(e){ b.innerHTML='<div class="text-secondary fw-bold py-2">Error loading demos.</div>'; return; }
+  if(!d.ok || !d.demos.length){ b.innerHTML='<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-film me-1"></i>No demos yet. Play a match with GOTV recording enabled.</div>'; return; }
+  b.innerHTML='<div class="plist">'+d.demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
+    `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+
+    `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a></div>`).join('')+'</div>';
+}
 
 // ---- server health ----
 function hbar(el,pct){ const e=$(el); e.style.width=Math.max(0,Math.min(100,pct||0))+'%'; e.className=(pct>=85?'hbad':pct>=70?'hwarn':'hgood'); }

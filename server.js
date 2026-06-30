@@ -444,6 +444,30 @@ app.post('/api/cleardownloads', requireAuth, async (req, res) => {
   res.json({ ok: true, diskPct, diskUsed, diskTotal });
 });
 
+// Demos (GOTV recordings) — list + download
+const DEMO_DIRS = (process.env.DEMO_DIRS || '/home/steam/cs2_server/game/csgo,/home/steam/cs2_server/game/csgo/replays').split(',');
+function listDemos() {
+  const out = [];
+  for (const dir of DEMO_DIRS) {
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        if (!f.toLowerCase().endsWith('.dem')) continue;
+        const st = fs.statSync(path.join(dir, f));
+        out.push({ name: f, dir, size: st.size, mtime: st.mtimeMs });
+      }
+    } catch (e) {}
+  }
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+app.get('/api/demos', requireAuth, (req, res) => res.json({ ok: true, demos: listDemos() }));
+app.get('/api/demos/download', requireAuth, (req, res) => {
+  const name = String(req.query.file || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
+  if (!name.toLowerCase().endsWith('.dem')) return res.status(400).end('bad file');
+  const hit = listDemos().find(d => d.name === name);
+  if (!hit) return res.status(404).end('not found');
+  res.download(path.join(hit.dir, name));
+});
+
 // Recent server logs
 app.get('/api/logs', requireAuth, async (req, res) => {
   const r = await sh(`journalctl -u ${SERVICE} -n 120 --no-pager`);
