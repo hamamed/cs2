@@ -460,6 +460,14 @@ function listDemos() {
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 app.get('/api/demos', requireAuth, (req, res) => res.json({ ok: true, demos: listDemos() }));
+// Clean public URL for downloading a demo: /videos/<name>.dem  (only serves real .dem files)
+app.get('/videos/:file', (req, res) => {
+  const name = String(req.params.file || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
+  if (!name.toLowerCase().endsWith('.dem')) return res.status(400).end('bad file');
+  const hit = listDemos().find(d => d.name === name);
+  if (!hit) return res.status(404).end('not found');
+  res.download(path.join(hit.dir, name));
+});
 app.get('/api/demos/download', requireAuth, (req, res) => {
   const name = String(req.query.file || '').replace(/[^a-zA-Z0-9_.\-]/g, '');
   if (!name.toLowerCase().endsWith('.dem')) return res.status(400).end('bad file');
