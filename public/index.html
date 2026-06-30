@@ -395,6 +395,20 @@
       </div>
     </div>
 
+    <!-- RECORDINGS -->
+    <div class="col-12">
+      <div class="wc-card">
+        <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-film"></i></span><h6>Recordings (demos)</h6>
+          <div class="ms-auto d-flex gap-2">
+            <button class="btn-soft py-1 px-3" onclick="recordPlayer(curTarget())" title="Record (labelled for current target)"><i class="fa-solid fa-circle text-danger me-1"></i>Record target</button>
+            <button class="btn-soft py-1 px-3" onclick="stopRecord()"><i class="fa-solid fa-stop me-1"></i>Stop</button>
+            <button class="btn-soft py-1 px-3" onclick="loadDemosInline()"><i class="fa-solid fa-rotate"></i></button>
+          </div>
+        </div>
+        <div class="p-3 p-md-4" id="demosInline"><div class="text-secondary fw-bold py-2">Loading…</div></div>
+      </div>
+    </div>
+
   </div>
   <p class="text-center mt-4 mb-2" style="color:var(--text-secondary);font-weight:700">CS2 Control Panel · running on your server</p>
 </div>
@@ -499,9 +513,10 @@ async function loadPlayers(){
   const rows=d.players.map((p,i)=>{
     const isBot = fromStatus ? p.bot : (i >= (n-botCount));
     const kickBtn = (!isBot || p.userid) ? `<button class="kick" onclick='kickPlayer(${JSON.stringify(p.userid||null)},${JSON.stringify(p.name||"")})'>Kick</button>` : '';
+    const recBtn = `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='recordPlayer(${JSON.stringify(p.name||"player")})' title="Record a demo labelled for this player">● Rec</button>`;
     const meta = fromStatus ? '' : `<span class="pscore">${p.score} pts</span><span class="ptime">${fmtDur(p.duration)}</span>`;
     return `<div class="prow ${isBot?'bot':''}"><span class="pav"><i class="fa-solid ${isBot?'fa-robot':'fa-user'}"></i></span>`+
-      `<span class="pname">${esc(p.name||'(connecting)')}</span>${meta}${kickBtn}</div>`;
+      `<span class="pname">${esc(p.name||'(connecting)')}</span>${meta}${recBtn}${kickBtn}</div>`;
   }).join('');
   const note = fromStatus ? '' : ' <span style="font-weight:600;opacity:.7">(names hidden by CS2 — counts only)</span>';
   b.innerHTML='<div class="lbl mb-2">'+n+' connected'+(d.bots!=null?' · '+botCount+' bots':'')+note+'</div><div class="plist">'+rows+'</div>';
@@ -514,16 +529,18 @@ async function kickPlayer(userid, name){
 }
 document.addEventListener('DOMContentLoaded',()=>{ const m=$('#playersModal'); if(m) m.addEventListener('hidden.bs.modal',()=>clearInterval(playersTimer)); });
 
-// ---- demos ----
+// ---- demos / recordings ----
 function fmtSize(b){ if(b<1048576)return (b/1024).toFixed(0)+' KB'; if(b<1073741824)return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
-async function loadDemos(){
-  const b=$('#demosBody');
-  let d; try{ d=await (await api('/api/demos')).json(); }catch(e){ b.innerHTML='<div class="text-secondary fw-bold py-2">Error loading demos.</div>'; return; }
-  if(!d.ok || !d.demos.length){ b.innerHTML='<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-film me-1"></i>No demos yet. Play a match with GOTV recording enabled.</div>'; return; }
-  b.innerHTML='<div class="plist">'+d.demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
-    `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+
-    `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a></div>`).join('')+'</div>';
-}
+function demoRows(demos){ return '<div class="plist">'+demos.map(f=>`<div class="prow"><span class="pav"><i class="fa-solid fa-film"></i></span>`+
+  `<span class="pname">${esc(f.name)}</span><span class="ptime">${fmtSize(f.size)}</span>`+
+  `<a class="kick" style="text-decoration:none;background:var(--accent-soft);color:var(--accent)" href="/api/demos/download?file=${encodeURIComponent(f.name)}"><i class="fa-solid fa-download me-1"></i>Download</a></div>`).join('')+'</div>'; }
+async function fetchDemos(){ try{ const d=await (await api('/api/demos')).json(); return d.ok?d.demos:[]; }catch(e){ return []; } }
+async function loadDemos(){ const d=await fetchDemos(); const el=$('#demosBody'); if(el) el.innerHTML = d.length? demoRows(d) : '<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-film me-1"></i>No demos yet.</div>'; }
+async function loadDemosInline(){ const el=$('#demosInline'); if(!el) return; const d=await fetchDemos();
+  el.innerHTML = d.length? demoRows(d.slice(0,12)) : '<div class="text-secondary fw-bold py-2"><i class="fa-solid fa-film me-1"></i>No recordings yet — they appear after matches (or use ● Rec on a player).</div>'; }
+function recordPlayer(name){ const safe=(name||'player').replace(/[^a-zA-Z0-9_]/g,'').slice(0,20)||'player'; const fn=safe+'_'+Date.now();
+  quick('tv_record '+fn); appendCout('<span class="ln ok">⏺ recording '+esc(fn)+'.dem — captures the whole match, labelled for '+esc(name)+'. Click Stop when done.</span>'); }
+function stopRecord(){ quick('tv_stoprecord'); appendCout('<span class="ln info">⏹ stopped recording</span>'); setTimeout(loadDemosInline,1500); }
 
 // ---- server health ----
 function hbar(el,pct){ const e=$(el); e.style.width=Math.max(0,Math.min(100,pct||0))+'%'; e.className=(pct>=85?'hbad':pct>=70?'hwarn':'hgood'); }
@@ -766,8 +783,8 @@ function renderLibrary(maps){ const grid=$('#wsLibrary'); maps.forEach(m=>wsCach
 
 // ---- boot ----
 renderMapPicker();
-api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); }});
-setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); loadGiveTargets(); } }, 8000);
+api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); loadDemosInline(); }});
+setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); loadGiveTargets(); loadDemosInline(); } }, 8000);
 </script>
 </body>
 </html>
