@@ -153,6 +153,59 @@ function buildVolumeSetupScript({ device, mp, src, mount }) {
   return lines.join('\n');
 }
 
+// Root-run script: put a FRESH CS2 install on `mp` (formatting/mounting `device`
+// first if `mount`). Preserves server-vars.conf, start.sh, plugins (addons/),
+// cfg/ and demos from wherever CS2 currently lives, DELETES the old (broken)
+// game files, symlinks src -> mp/cs2_server, downloads a clean copy as the game
+// user, then restores the preserved files. Everything ends up on the volume.
+function buildFreshInstallScript({ steamcmd, device, mp, mount, src }) {
+  // Use the literal src path (not "$SRC"): this string runs inside su -c '...'
+  // as the steam user, where the root shell's $SRC variable wouldn't exist.
+  const steam = `${steamcmd} +force_install_dir "${src}" +login anonymous +app_update 730 validate +quit`;
+  const lines = [
+    `DEV="${device}"; MP="${mp}"; SRC="${src}"`,
+    `TGT="$MP/cs2_server"; KEEP="$MP/.cs2_keep"`,
+    `mkdir -p "$MP"`,
+  ];
+  if (mount) {
+    lines.push(
+      `if blkid "$DEV" >/dev/null 2>&1; then echo "[panel] $DEV already has a filesystem — keeping it."; ` +
+        `else echo "[panel] $DEV is empty — formatting ext4…"; mkfs.ext4 -F "$DEV" || { echo "[panel] mkfs failed."; exit 4; }; fi`,
+      `mountpoint -q "$MP" || mount -o discard,defaults "$DEV" "$MP" || { echo "[panel] mount failed."; exit 5; }`,
+      `UUID=$(blkid -s UUID -o value "$DEV"); grep -q "$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 discard,nofail,defaults 0 2" >> /etc/fstab`,
+    );
+  } else {
+    lines.push(`mountpoint -q "$MP" || { echo "[panel] $MP is not mounted — aborting."; exit 5; }`);
+  }
+  lines.push(
+    `REAL=$(readlink -f "$SRC" 2>/dev/null); [ -z "$REAL" ] && REAL="$SRC"`,
+    `echo "[panel] Current install is at: $REAL"`,
+    `echo "[panel] Preserving configs, plugins and demos…"`,
+    `rm -rf "$KEEP"; mkdir -p "$KEEP/demos"`,
+    `for f in server-vars.conf start.sh; do [ -f "$REAL/$f" ] && cp -a "$REAL/$f" "$KEEP/" && echo "[panel]   kept $f"; done`,
+    `[ -d "$REAL/game/csgo/addons" ] && cp -a "$REAL/game/csgo/addons" "$KEEP/addons" && echo "[panel]   kept addons/ (plugins)"`,
+    `[ -d "$REAL/game/csgo/cfg" ] && cp -a "$REAL/game/csgo/cfg" "$KEEP/cfg" && echo "[panel]   kept cfg/"`,
+    `find "$REAL/game/csgo" -maxdepth 2 -name "*.dem" -exec cp -a -t "$KEEP/demos" {} + 2>/dev/null; echo "[panel]   kept $(ls "$KEEP/demos" | wc -l) demo(s)"`,
+    `echo "[panel] Deleting old game files…"`,
+    `rm -rf "$REAL"; [ -L "$SRC" ] && rm -f "$SRC"; rm -rf "$SRC"`,
+    `mkdir -p "$TGT"; ln -s "$TGT" "$SRC"`,
+    `[ -f "$KEEP/server-vars.conf" ] && cp -a "$KEEP/server-vars.conf" "$TGT/"`,
+    `[ -f "$KEEP/start.sh" ] && cp -a "$KEEP/start.sh" "$TGT/"`,
+    `chown -R ${STEAM_USER}:${STEAM_USER} "$TGT"; chown -h ${STEAM_USER}:${STEAM_USER} "$SRC"`,
+    `FREE=$(df -B1 --output=avail "$MP" | tail -1 | tr -d " "); echo "[panel] Target volume free: $((FREE/1073741824)) GiB."`,
+    `echo "[panel] Downloading a FRESH CS2 install onto the volume — full ~63 GiB, this takes a while…"`,
+    `su - ${STEAM_USER} -c '${steam.replace(/'/g, "'\\''")}' 2>&1 | tee "$KEEP/steam.log"`,
+    `if grep -q "Success! App .730. fully installed" "$KEEP/steam.log"; then CODE=0; else CODE=1; fi`,
+    `echo "[panel] Restoring plugins, configs and demos…"; mkdir -p "$TGT/game/csgo"`,
+    `[ -d "$KEEP/addons" ] && { rm -rf "$TGT/game/csgo/addons"; cp -a "$KEEP/addons" "$TGT/game/csgo/addons"; }`,
+    `[ -d "$KEEP/cfg" ] && { mkdir -p "$TGT/game/csgo/cfg"; cp -rf "$KEEP/cfg/." "$TGT/game/csgo/cfg/"; }`,
+    `cp -a "$KEEP/demos/"*.dem "$TGT/game/csgo/" 2>/dev/null`,
+    `chown -R ${STEAM_USER}:${STEAM_USER} "$TGT"`,
+    `rm -rf "$KEEP"; echo "[panel] Done — fresh CS2 install lives on the volume at $TGT."; exit $CODE`,
+  );
+  return lines.join('\n');
+}
+
 // In-memory state of the currently running / last update job.
 let updateJob = null; // { running, done, ok, startedAt, log:[] }
 
@@ -767,6 +820,56 @@ app.post('/api/volume/setup', requireAuth, async (req, res) => {
     updateJob.ok = (code === 0);
     if (code === 0) push('[panel] Volume ready. Starting CS2 server, then run Update to finish the repair.');
     else push('[panel] Volume setup did not complete (exit ' + code + '). Nothing was deleted; your files are intact.');
+    push('[panel] Starting CS2 server…');
+    const r = await sh(`systemctl start ${SERVICE}`);
+    push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);
+    updateJob.running = false; updateJob.done = true;
+  });
+  res.json({ ok: true, started: true });
+});
+
+// One-click: DELETE the current (possibly broken) install and put a FRESH CS2
+// download on the chosen volume, preserving configs/plugins/demos.
+app.post('/api/volume/fresh', requireAuth, async (req, res) => {
+  if (updateJob && updateJob.running) return res.json({ ok: false, error: 'A job is already running.' });
+  const device = String((req.body && req.body.device) || '');
+  const vols = await scanVolumes();
+  const vol = vols.find(v => v.name === device);
+  if (!/^\/dev\/[a-zA-Z0-9/_-]+$/.test(device) || !vol) {
+    return res.status(400).json({ ok: false, error: 'That device is not a recognised volume.' });
+  }
+  const steamcmd = resolveSteamcmd();
+  updateJob = { running: true, done: false, ok: false, startedAt: Date.now(), log: [] };
+  const push = (chunk) => {
+    for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
+    if (updateJob.log.length > 800) updateJob.log = updateJob.log.slice(-800);
+  };
+  if (!steamcmd) {
+    push('[panel] SteamCMD not found. Install it or set STEAMCMD=/path/to/steamcmd.sh');
+    updateJob.running = false; updateJob.done = true; updateJob.ok = false;
+    return res.json({ ok: false, error: 'SteamCMD not found' });
+  }
+  const alreadyMounted = !!vol.mountpoint;
+  const MP = alreadyMounted ? vol.mountpoint : (process.env.VOLUME_MOUNT || '/mnt/cs2');
+  push(`[panel] Fresh CS2 install onto ${device} (${vol.sizeGB} GiB) at ${MP}.`);
+  push('[panel] Using SteamCMD at: ' + steamcmd);
+  push('[panel] Stopping CS2 server…');
+  await sh(`systemctl stop ${SERVICE}`);
+  liveMap = null; lastStartStamp = null;
+  const script = buildFreshInstallScript({ steamcmd, device, mp: MP, mount: !alreadyMounted, src: CS2_DIR });
+  let child;
+  try { child = spawn('bash', ['-lc', script], { stdio: ['ignore', 'pipe', 'pipe'] }); }
+  catch (e) {
+    push('[panel] Could not start: ' + e.message);
+    updateJob.running = false; updateJob.done = true; updateJob.ok = false;
+    return res.json({ ok: false, error: e.message });
+  }
+  child.stdout.on('data', push);
+  child.stderr.on('data', push);
+  child.on('error', (e) => push('[panel] Error: ' + e.message));
+  child.on('close', async (code) => {
+    updateJob.ok = (code === 0);
+    push(code === 0 ? '[panel] Fresh install complete.' : '[panel] Fresh install did not complete (exit ' + code + ').');
     push('[panel] Starting CS2 server…');
     const r = await sh(`systemctl start ${SERVICE}`);
     push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);

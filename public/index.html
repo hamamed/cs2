@@ -622,9 +622,10 @@ async function loadStorage(){
         const where = c.mountpoint ? ('mounted at '+esc(c.mountpoint)) : (c.formatted?('formatted '+esc(c.fstype)+', not mounted'):'empty, not mounted');
         return `<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
         `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${where}</span>`+
-        `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted},${JSON.stringify(c.mountpoint||"")})'><i class="fa-solid fa-download me-1"></i>Move CS2 here</button></div>`;
+        `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted},${JSON.stringify(c.mountpoint||"")})' title="Move the existing install onto this volume">Move here</button>`+
+        `<button class="kick" style="background:#fdecee;color:var(--red)" onclick='freshInstall(${JSON.stringify(c.name)},${c.sizeGB},${JSON.stringify(c.mountpoint||"")})' title="Delete game files and download a fresh copy onto this volume"><i class="fa-solid fa-download me-1"></i>Fresh install here</button></div>`;
       }).join('')+
-      '<div class="hint d-inline-block mt-2">Click <b>Move CS2 here</b> to relocate the CS2 install onto this volume. The old path is symlinked so nothing else breaks — afterwards click <b>Update Server</b> to finish the repair.</div>';
+      '<div class="hint d-inline-block mt-2"><b>Move here</b> relocates the current install as-is. <b>Fresh install here</b> deletes the game files and downloads a clean copy onto this volume (keeps your configs, plugins &amp; demos) — use this when the install is broken.</div>';
   } else {
     cand='<div class="hint d-inline-block mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>No unmounted volume detected. If you just attached one, give the provider a minute, then refresh — or it may already be mounted (check the list below).</div>';
   }
@@ -651,6 +652,17 @@ async function setupVolume(device, sizeGB, formatted, mountpoint){
   bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
   $('#updterm').innerHTML='<span class="ln dim">Setting up volume '+esc(device)+'…</span>'; updBadge('run');
   const r=await api('/api/volume/setup',{method:'POST',body:JSON.stringify({device})}); const d=await r.json();
+  if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start')+'</span>'; updBadge('err'); return; }
+  pollUpdate();
+}
+async function freshInstall(device, sizeGB, mountpoint){
+  const where = mountpoint ? ('the volume mounted at '+mountpoint) : (device+' (will be mounted)');
+  if(!confirm('FRESH install of CS2 onto '+where+'?\n\nThis DELETES the current game files and downloads a clean ~63 GiB copy onto this volume. Your configs (passwords/GSLT), plugins (addons) and demos are preserved. The server stays OFFLINE until it finishes (can take a long time).\n\nContinue?')) return;
+  if(!confirm('Last check: this permanently deletes the existing game install. Preserved: server-vars.conf, start.sh, addons/, cfg/, demos. Proceed?')) return;
+  bootstrap.Modal.getOrCreateInstance($('#storageModal')).hide();
+  bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
+  $('#updterm').innerHTML='<span class="ln dim">Starting fresh install on '+esc(device)+'…</span>'; updBadge('run');
+  const r=await api('/api/volume/fresh',{method:'POST',body:JSON.stringify({device})}); const d=await r.json();
   if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start')+'</span>'; updBadge('err'); return; }
   pollUpdate();
 }
