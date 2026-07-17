@@ -237,6 +237,7 @@
             <button class="btn-c c-red" onclick="ctl('stop')"><i class="fa-solid fa-stop me-1"></i> Stop</button>
             <button class="btn-accent" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
             <button class="btn-c c-gold" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
+            <button class="btn-soft" onclick="startUpdate()" title="Update CS2 server files via SteamCMD (server restarts)"><i class="fa-solid fa-cloud-arrow-down me-1"></i> Update Server</button>
             <span class="conn ms-auto" id="connstr" onclick="copyConn()" title="Click to copy"><i class="fa-solid fa-copy"></i><span id="conntext">connect …</span></span>
           </div>
         </div>
@@ -456,6 +457,22 @@
   </div>
 </div>
 
+<!-- ===== SERVER UPDATE MODAL ===== -->
+<div class="modal fade modal-term" id="updateModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="term-bar">
+        <span class="term-dots"><span class="td-r"></span><span class="td-y"></span><span class="td-g"></span></span>
+        <span class="term-title">steamcmd · app_update 730</span>
+        <span class="spacer"></span>
+        <span class="status-pill pill-off me-2" id="updBadge" style="font-size:.78rem"><span class="dot"></span> Idle</span>
+        <button class="term-btn" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i> Close</button>
+      </div>
+      <div class="term" id="updterm"><span class="ln dim">Idle.</span></div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -585,7 +602,7 @@ function copyConn(){ const txt=$('#conntext').textContent; const el=$('#connstr'
 
 // ---- auth ----
 async function login(){ const r=await api('/api/login',{method:'POST',body:JSON.stringify({user:$('#lu').value,pass:$('#lp').value})});
-  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); } else $('#lerr').textContent='Wrong username or password.'; }
+  if(r.ok){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); resumeUpdate(); } else $('#lerr').textContent='Wrong username or password.'; }
 async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
 
 // ---- status ----
@@ -634,6 +651,36 @@ async function ctl(a){ const r=await api('/api/control',{method:'POST',body:JSON
   appendCout('<span class="ln info">'+esc(d.out||d.error)+'</span>'); setTimeout(()=>{refresh();loadPreview();},1500); }
 async function practice(){ const r=await api('/api/practice',{method:'POST'}); const d=await r.json();
   appendCout('<span class="ln ok">[practice] '+esc(d.out||d.error)+'</span>'); }
+
+// ---- server update (SteamCMD) ----
+let updTimer=null;
+function updBadge(state){ const b=$('#updBadge'); if(!b)return;
+  if(state==='run'){ b.className='status-pill pill-off'; b.innerHTML='<span class="dot"></span> Updating…'; }
+  else if(state==='ok'){ b.className='status-pill pill-on'; b.innerHTML='<i class="fa-solid fa-circle-check"></i> Update complete'; }
+  else if(state==='err'){ b.className='status-pill pill-off'; b.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i> Finished with errors'; }
+  else { b.className='status-pill pill-off'; b.innerHTML='<span class="dot"></span> Idle'; } }
+async function startUpdate(){
+  if(!confirm('Update the CS2 server now?\n\nThe server will go OFFLINE while SteamCMD downloads updates (this can take several minutes), then it restarts automatically.')) return;
+  bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
+  $('#updterm').innerHTML='<span class="ln dim">Starting update…</span>'; updBadge('run');
+  const r=await api('/api/update',{method:'POST'}); const d=await r.json();
+  if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start update')+'</span>'; updBadge('err'); return; }
+  pollUpdate();
+}
+async function resumeUpdate(){ // if an update is still running (e.g. after a page reload), reopen the console
+  let d; try{ d=await (await api('/api/update/status')).json(); }catch(e){ return; }
+  if(d.ok && d.running){ bootstrap.Modal.getOrCreateInstance($('#updateModal')).show(); pollUpdate(); }
+}
+function pollUpdate(){ clearInterval(updTimer);
+  const tick=async()=>{
+    let d; try{ d=await (await api('/api/update/status')).json(); }catch(e){ return; }
+    renderTerm($('#updterm'), d.log||'(waiting for output…)', true);
+    if(d.running){ updBadge('run'); }
+    else if(d.done){ updBadge(d.success?'ok':'err'); clearInterval(updTimer); updTimer=null; refresh(); loadPreview(); }
+  };
+  tick(); updTimer=setInterval(tick,2000);
+}
+document.addEventListener('DOMContentLoaded',()=>{ const m=$('#updateModal'); if(m) m.addEventListener('hidden.bs.modal',()=>{ clearInterval(updTimer); updTimer=null; }); });
 
 // ---- console ----
 function appendCout(html){ const t=$('#cout'); if(t.querySelector('.dim'))t.innerHTML=''; t.innerHTML+=html; t.scrollTop=t.scrollHeight; }
@@ -793,7 +840,7 @@ function renderLibrary(maps){ const grid=$('#wsLibrary'); maps.forEach(m=>wsCach
 
 // ---- boot ----
 renderMapPicker();
-api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); loadDemosInline(); }});
+api('/api/me').then(r=>r.json()).then(d=>{ if(d.authed){ $('#login').classList.add('hide'); $('#app').classList.remove('hide'); refresh(); loadPreview(); loadLibrary(); loadHealth(); loadGiveTargets(); loadDemosInline(); resumeUpdate(); }});
 setInterval(()=>{ if(!$('#app').classList.contains('hide')){ refresh(); loadPreview(); loadHealth(); loadGiveTargets(); loadDemosInline(); } }, 8000);
 </script>
 </body>

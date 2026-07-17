@@ -59,7 +59,19 @@ ufw allow 8080/tcp
 
 Open `http://YOUR_SERVER_IP:8080` and log in.
 
-## Updating later
+## Updating the game server (no SSH)
+
+The **Update Server** button in the Server Power card runs SteamCMD
+(`app_update 730 validate`) for you: it stops the server, streams the download
+progress live in a console popup, then restarts the server automatically.
+
+It expects SteamCMD at `/home/steam/steamcmd/steamcmd.sh` and the server at
+`/home/steam/cs2_server`, run as the `steam` user. The panel runs as root, so it
+can `su - steam` without a password. Override the paths (or the whole command)
+with the `STEAM_USER` / `STEAMCMD` / `CS2_DIR` / `UPDATE_CMD` environment
+variables in `cs2-panel.service`.
+
+## Updating the panel itself later
 ```bash
 cd /opt/cs2-panel && git pull && npm install && systemctl restart cs2-panel
 ```

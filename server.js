@@ -2,7 +2,7 @@
 // Runs on the VPS, controls the `cs2` systemd service and talks RCON to the server.
 const express = require('express');
 const session = require('express-session');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
@@ -22,6 +22,21 @@ const RCON_HOSTS = (process.env.RCON_HOST || '127.0.0.1,127.0.1.1,localhost')
 
 // Keys the panel is allowed to edit in server-vars.conf
 const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'PORT', 'GSLT'];
+
+// ---------- Server-update (SteamCMD) config ----------
+// CS2 dedicated server = Steam app 730. Updating downloads game files, so the
+// server must be stopped first, then restarted once SteamCMD finishes.
+// The panel usually runs as root; SteamCMD must run as the game user (`steam`)
+// so downloaded files keep the right ownership. Override any of these via the
+// systemd unit, or set UPDATE_CMD directly for a fully custom command.
+const STEAM_USER = process.env.STEAM_USER || 'steam';
+const STEAMCMD = process.env.STEAMCMD || '/home/steam/steamcmd/steamcmd.sh';
+const CS2_DIR = process.env.CS2_DIR || '/home/steam/cs2_server';
+const UPDATE_CMD = process.env.UPDATE_CMD ||
+  `su - ${STEAM_USER} -c "${STEAMCMD} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit"`;
+
+// In-memory state of the currently running / last update job.
+let updateJob = null; // { running, done, ok, startedAt, log:[] }
 
 // Tracks a map loaded live (workshop / changelevel) since the last (re)start,
 // so the panel shows the real current map even after a browser refresh.
@@ -297,6 +312,56 @@ app.post('/api/control', requireAuth, async (req, res) => {
   const r = await sh(`systemctl ${action} ${SERVICE}`);
   liveMap = null; // (re)start/stop reverts to the configured map
   res.json({ ok: r.ok, out: r.out || `${action} sent` });
+});
+
+// Update the CS2 server files via SteamCMD (app 730).
+// Stops the server, runs SteamCMD in the background streaming output into
+// updateJob.log, then restarts the server. Poll /api/update/status for progress.
+app.post('/api/update', requireAuth, async (req, res) => {
+  if (updateJob && updateJob.running) return res.json({ ok: true, already: true });
+  updateJob = { running: true, done: false, ok: false, startedAt: Date.now(), log: [] };
+  const push = (chunk) => {
+    for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
+    if (updateJob.log.length > 600) updateJob.log = updateJob.log.slice(-600);
+  };
+  push('[panel] Stopping CS2 server before update…');
+  await sh(`systemctl stop ${SERVICE}`);
+  liveMap = null; lastStartStamp = null;
+  push('[panel] Running SteamCMD update for app 730 — this can take several minutes.');
+  let child;
+  try {
+    child = spawn('bash', ['-lc', UPDATE_CMD], { stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    push('[panel] Could not launch SteamCMD: ' + e.message);
+    updateJob.running = false; updateJob.done = true; updateJob.ok = false;
+    return res.json({ ok: false, error: e.message });
+  }
+  child.stdout.on('data', push);
+  child.stderr.on('data', push);
+  child.on('error', (e) => push('[panel] SteamCMD error: ' + e.message));
+  child.on('close', async (code) => {
+    push('[panel] SteamCMD finished (exit code ' + code + ').');
+    push('[panel] Starting CS2 server…');
+    const r = await sh(`systemctl start ${SERVICE}`);
+    push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);
+    updateJob.ok = (code === 0);
+    updateJob.running = false;
+    updateJob.done = true;
+  });
+  res.json({ ok: true, started: true });
+});
+
+// Progress of the current / last update job
+app.get('/api/update/status', requireAuth, (req, res) => {
+  if (!updateJob) return res.json({ ok: true, running: false, done: false, log: '' });
+  res.json({
+    ok: true,
+    running: updateJob.running,
+    done: updateJob.done,
+    success: updateJob.ok,
+    startedAt: updateJob.startedAt,
+    log: updateJob.log.join('\n'),
+  });
 });
 
 // Raw RCON command
