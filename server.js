@@ -114,32 +114,43 @@ function buildReinstallCmd(steamcmd) {
   return asSteam(script);
 }
 
-// Root-run script: format (only if empty) + mount `device` at `mp`, then move
-// the CS2 dir `src` onto it and replace `src` with a symlink so every hard-coded
-// path keeps working. Bails out safely (nothing deleted) on any problem.
-function buildVolumeSetupScript(device, mp, src) {
-  return [
+// Root-run script: (optionally format + mount `device` at `mp`), then move the
+// CS2 dir `src` onto `mp` and replace `src` with a symlink so every hard-coded
+// path keeps working. When `mount` is false the volume is already mounted at
+// `mp` (e.g. a Hetzner auto-mounted volume) and we just relocate CS2 into it.
+// Bails out safely (nothing deleted) on any problem.
+function buildVolumeSetupScript({ device, mp, src, mount }) {
+  const lines = [
     `DEV="${device}"; MP="${mp}"; SRC="${src}"`,
     `if [ -L "$SRC" ]; then echo "[panel] $SRC is already a symlink — looks already migrated. Aborting."; exit 3; fi`,
     `mkdir -p "$MP"`,
-    // Only format when there is no filesystem yet — never wipe an existing one.
-    `if blkid "$DEV" >/dev/null 2>&1; then echo "[panel] $DEV already has a filesystem — keeping it (not formatting)."; ` +
-      `else echo "[panel] $DEV is empty — formatting ext4…"; mkfs.ext4 -F "$DEV" || { echo "[panel] mkfs failed."; exit 4; }; fi`,
-    `mount -o discard,defaults "$DEV" "$MP" || { echo "[panel] mount failed."; exit 5; }`,
-    `UUID=$(blkid -s UUID -o value "$DEV"); echo "[panel] Mounted $DEV at $MP (UUID=$UUID)."`,
+  ];
+  if (mount) {
+    lines.push(
+      // Only format when there is no filesystem yet — never wipe an existing one.
+      `if blkid "$DEV" >/dev/null 2>&1; then echo "[panel] $DEV already has a filesystem — keeping it (not formatting)."; ` +
+        `else echo "[panel] $DEV is empty — formatting ext4…"; mkfs.ext4 -F "$DEV" || { echo "[panel] mkfs failed."; exit 4; }; fi`,
+      `mount -o discard,defaults "$DEV" "$MP" || { echo "[panel] mount failed."; exit 5; }`,
+      `UUID=$(blkid -s UUID -o value "$DEV"); echo "[panel] Mounted $DEV at $MP (UUID=$UUID)."`,
+      // Persist across reboots, with nofail so a detached volume never blocks boot.
+      `grep -q "$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 discard,nofail,defaults 0 2" >> /etc/fstab`,
+    );
+  } else {
+    lines.push(`mountpoint -q "$MP" || { echo "[panel] $MP is not mounted anymore — aborting."; exit 5; }`);
+  }
+  lines.push(
     // Make sure CS2 actually fits on the volume before touching anything.
     `NEED=$(du -sb "$SRC" 2>/dev/null | cut -f1); FREE=$(df -B1 --output=avail "$MP" | tail -1 | tr -d " ")`,
     `echo "[panel] CS2 needs $((NEED/1073741824)) GiB; volume has $((FREE/1073741824)) GiB free."`,
-    `if [ "\${NEED:-0}" -gt "\${FREE:-0}" ]; then echo "[panel] Volume too small — aborting, nothing moved."; umount "$MP"; exit 6; fi`,
+    `if [ "\${NEED:-0}" -gt "\${FREE:-0}" ]; then echo "[panel] Volume too small — aborting, nothing moved."; exit 6; fi`,
     `echo "[panel] Moving CS2 onto the volume — this can take a while for a large install…"`,
     `mv "$SRC" "$MP/$(basename "$SRC")" || { echo "[panel] Move failed — leaving everything as-is."; exit 7; }`,
     `ln -s "$MP/$(basename "$SRC")" "$SRC"`,
     `chown -h ${STEAM_USER}:${STEAM_USER} "$SRC"; chown -R ${STEAM_USER}:${STEAM_USER} "$MP/$(basename "$SRC")"`,
-    // Persist across reboots, with nofail so a detached volume never blocks boot.
-    `grep -q "$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 discard,nofail,defaults 0 2" >> /etc/fstab`,
     `echo "[panel] Done — CS2 now lives on the volume (via a symlink at $SRC)."`,
     `exit 0`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 // In-memory state of the currently running / last update job.
@@ -626,10 +637,27 @@ app.post('/api/ban', requireAuth, async (req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// Server health: CPU / RAM / disk
+// Disk usage for a given path: {pct, used, total, mount}
+async function diskFor(pathArg) {
+  // Fixed column order via --output; fall back to classic df layout if needed.
+  try {
+    let out = (await sh(`df -h --output=target,size,used,pcent ${pathArg} 2>/dev/null`)).out.trim();
+    if (out) {
+      const d = out.split('\n').pop().split(/\s+/); // [target, size, used, pcent]
+      if (d.length >= 4 && /%$/.test(d[3])) return { mount: d[0], total: d[1], used: d[2], pct: parseInt(d[3]) };
+    }
+    // Classic: Filesystem Size Used Avail Use% Mounted-on
+    const d = (await sh(`df -h ${pathArg}`)).out.trim().split('\n').pop().split(/\s+/);
+    if (d.length >= 6) return { mount: d[5], total: d[1], used: d[2], pct: parseInt(d[4]) };
+  } catch (e) {}
+  return null;
+}
+
+// Server health: CPU / RAM / disk (CS2 install volume) + panel/root disk
 app.get('/api/health', requireAuth, async (req, res) => {
-  let diskPct = null, diskUsed = '', diskTotal = '';
-  try { const d = (await sh('df -h /')).out.trim().split('\n').pop().split(/\s+/); diskTotal = d[1]; diskUsed = d[2]; diskPct = parseInt(d[4]); } catch (e) {}
+  // Disk that actually holds CS2 (follows the symlink if it's on a volume).
+  const cs2Disk = await diskFor(CS2_DIR) || {};
+  const rootDisk = await diskFor('/') || {};
   let memPct = null, memUsed = 0, memTotal = os.totalmem();
   try {
     const line = (await sh('free -b')).out.split('\n').find(l => /^Mem:/.test(l)).split(/\s+/);
@@ -637,10 +665,14 @@ app.get('/api/health', requireAuth, async (req, res) => {
   } catch (e) { memUsed = memTotal - os.freemem(); }
   memPct = Math.round(memUsed / memTotal * 100);
   const cpus = os.cpus().length, load = os.loadavg()[0];
+  const sameDisk = cs2Disk.mount === rootDisk.mount;
   res.json({
     ok: true, cpuPct: Math.min(100, Math.round(load / cpus * 100)), load: +load.toFixed(2), cpus,
     memPct, memUsedGB: (memUsed / 1073741824).toFixed(1), memTotalGB: (memTotal / 1073741824).toFixed(1),
-    diskPct, diskUsed, diskTotal,
+    // Main disk bar = where CS2 lives (the volume after migration).
+    diskPct: cs2Disk.pct ?? null, diskUsed: cs2Disk.used || '', diskTotal: cs2Disk.total || '', diskMount: cs2Disk.mount || '/',
+    // Panel/root disk shown separately (hidden when CS2 is still on the same disk).
+    rootPct: sameDisk ? null : (rootDisk.pct ?? null), rootUsed: rootDisk.used || '', rootTotal: rootDisk.total || '', rootMount: rootDisk.mount || '/',
   });
 });
 
@@ -649,9 +681,8 @@ app.post('/api/cleardownloads', requireAuth, async (req, res) => {
   await sh('rm -rf /home/steam/cs2_server/steamapps/workshop/downloads/* 2>/dev/null');
   await sh('rm -rf /home/steam/.steam/steam/steamapps/workshop/downloads/* 2>/dev/null');
   await sh('journalctl --vacuum-size=200M >/dev/null 2>&1');
-  let diskPct = null, diskUsed = '', diskTotal = '';
-  try { const d = (await sh('df -h /')).out.trim().split('\n').pop().split(/\s+/); diskTotal = d[1]; diskUsed = d[2]; diskPct = parseInt(d[4]); } catch (e) {}
-  res.json({ ok: true, diskPct, diskUsed, diskTotal });
+  const disk = await diskFor(CS2_DIR) || {};
+  res.json({ ok: true, diskPct: disk.pct ?? null, diskUsed: disk.used || '', diskTotal: disk.total || '' });
 });
 
 // Scan for attached-but-unmounted volumes that aren't part of the root disk —
@@ -665,12 +696,16 @@ async function scanVolumes() {
     });
     const rootDev = rows.find(r => r.MOUNTPOINT === '/');
     const rootDisk = rootDev ? (rootDev.PKNAME || rootDev.NAME) : '';
+    const SYS_MOUNTS = ['/', '/boot', '/boot/efi', '[SWAP]'];
     for (const r of rows) {
       const sizeGB = (parseInt(r.SIZE || '0', 10) / 1073741824);
       const isRootFamily = r.NAME === rootDisk || r.PKNAME === rootDisk;
-      if ((r.TYPE === 'disk' || r.TYPE === 'part') && !r.MOUNTPOINT && !isRootFamily && sizeGB >= 5) {
-        out.push({ name: r.NAME, sizeGB: Math.round(sizeGB), fstype: r.FSTYPE || '', type: r.TYPE, formatted: !!r.FSTYPE });
-      }
+      const mp = r.MOUNTPOINT || '';
+      if ((r.TYPE !== 'disk' && r.TYPE !== 'part') || isRootFamily || sizeGB < 5) continue;
+      if (mp && SYS_MOUNTS.includes(mp)) continue;              // skip OS/boot/swap
+      // A data volume is a candidate whether it's unmounted (we'll mount it) or
+      // already mounted somewhere non-system (we'll just move CS2 into it).
+      out.push({ name: r.NAME, sizeGB: Math.round(sizeGB), fstype: r.FSTYPE || '', type: r.TYPE, formatted: !!r.FSTYPE, mountpoint: mp });
     }
   } catch (e) {}
   return out;
@@ -700,13 +735,15 @@ app.post('/api/volume/setup', requireAuth, async (req, res) => {
     for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
     if (updateJob.log.length > 800) updateJob.log = updateJob.log.slice(-800);
   };
-  const MP = process.env.VOLUME_MOUNT || '/mnt/cs2';
+  const alreadyMounted = !!vol.mountpoint;
+  const MP = alreadyMounted ? vol.mountpoint : (process.env.VOLUME_MOUNT || '/mnt/cs2');
   const SRC = CS2_DIR;
   push(`[panel] Setting up volume ${device} (${vol.sizeGB} GiB) for CS2…`);
+  if (alreadyMounted) push(`[panel] Volume already mounted at ${MP} — will move CS2 there (no format needed).`);
   push('[panel] Stopping CS2 server…');
   await sh(`systemctl stop ${SERVICE}`);
   liveMap = null; lastStartStamp = null;
-  const script = buildVolumeSetupScript(device, MP, SRC);
+  const script = buildVolumeSetupScript({ device, mp: MP, src: SRC, mount: !alreadyMounted });
   let child;
   try { child = spawn('bash', ['-lc', script], { stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (e) {

@@ -217,7 +217,11 @@
           <div class="row g-3 align-items-end">
             <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-microchip me-1"></i>CPU</span><span class="pct" id="hCpuP">—</span></div><div class="hbar"><span id="hCpu" class="hgood" style="width:0"></span></div></div>
             <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-memory me-1"></i>RAM</span><span class="pct" id="hMemP">—</span></div><div class="hbar"><span id="hMem" class="hgood" style="width:0"></span></div></div>
-            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-hard-drive me-1"></i>Disk</span><span class="pct" id="hDiskP">—</span></div><div class="hbar"><span id="hDisk" class="hgood" style="width:0"></span></div></div>
+            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-hard-drive me-1"></i>Disk <span id="hDiskMount" style="font-weight:600;color:var(--text-secondary)"></span></span><span class="pct" id="hDiskP">—</span></div><div class="hbar"><span id="hDisk" class="hgood" style="width:0"></span></div></div>
+          </div>
+          <div class="mt-2" id="hRootRow" style="display:none">
+            <div class="hlabel"><span><i class="fa-solid fa-server me-1"></i>Panel disk <span id="hRootMount" style="font-weight:600;color:var(--text-secondary)"></span></span><span class="pct" id="hRootP">—</span></div>
+            <div class="hbar"><span id="hRoot" class="hgood" style="width:0"></span></div>
           </div>
           <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
             <button class="btn-soft" onclick="clearDownloads()"><i class="fa-solid fa-broom me-1"></i> Clear workshop downloads</button>
@@ -591,6 +595,13 @@ async function loadHealth(){
   $('#hCpuP').textContent=d.cpuPct+'%  ('+d.load+' load)'; hbar('#hCpu',d.cpuPct);
   $('#hMemP').textContent=d.memPct+'%  ('+d.memUsedGB+'/'+d.memTotalGB+'GB)'; hbar('#hMem',d.memPct);
   $('#hDiskP').textContent=(d.diskPct||0)+'%  ('+d.diskUsed+'/'+d.diskTotal+')'; hbar('#hDisk',d.diskPct);
+  if($('#hDiskMount')) $('#hDiskMount').textContent = d.diskMount && d.diskMount!=='/' ? '· '+d.diskMount : '';
+  // Panel/root disk row — only shown when CS2 lives on a separate volume
+  const rootRow=$('#hRootRow');
+  if(rootRow){
+    if(d.rootPct!=null){ rootRow.style.display=''; $('#hRootP').textContent=d.rootPct+'%  ('+d.rootUsed+'/'+d.rootTotal+')'; hbar('#hRoot',d.rootPct); if($('#hRootMount'))$('#hRootMount').textContent='· '+(d.rootMount||'/'); }
+    else rootRow.style.display='none';
+  }
   $('#diskWarn').innerHTML = d.diskPct>=85 ? '<span class="pill-off status-pill" style="font-size:.78rem"><i class="fa-solid fa-triangle-exclamation"></i> Disk '+d.diskPct+'% — clean up!</span>' : '';
 }
 async function clearDownloads(){
@@ -606,12 +617,14 @@ async function loadStorage(){
   const term=(t)=>`<div class="term-wrap"><div class="term" style="height:auto;max-height:32vh">${esc(t||'(none)').split(/\r?\n/).map(l=>`<span class="ln">${esc(l)||'&nbsp;'}</span>`).join('')}</div></div>`;
   let cand='';
   if(d.candidates && d.candidates.length){
-    cand='<div class="lbl mt-1 mb-1"><i class="fa-solid fa-circle-info me-1"></i>Detected attached-but-unmounted volume(s):</div>'+
-      d.candidates.map(c=>`<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
-        `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${c.formatted?('formatted '+esc(c.fstype)):'not formatted'}</span>`+
-        `<span class="ptime">${c.type}</span>`+
-        `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted})'><i class="fa-solid fa-download me-1"></i>Use for CS2</button></div>`).join('')+
-      '<div class="hint d-inline-block mt-2">Click <b>Use for CS2</b> to mount this volume and move the CS2 install onto it (formats only if it’s empty). The old path is symlinked so nothing else breaks — afterwards just click <b>Update Server</b> to finish the repair.</div>';
+    cand='<div class="lbl mt-1 mb-1"><i class="fa-solid fa-circle-info me-1"></i>Extra data volume(s) available for CS2:</div>'+
+      d.candidates.map(c=>{
+        const where = c.mountpoint ? ('mounted at '+esc(c.mountpoint)) : (c.formatted?('formatted '+esc(c.fstype)+', not mounted'):'empty, not mounted');
+        return `<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
+        `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${where}</span>`+
+        `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted},${JSON.stringify(c.mountpoint||"")})'><i class="fa-solid fa-download me-1"></i>Move CS2 here</button></div>`;
+      }).join('')+
+      '<div class="hint d-inline-block mt-2">Click <b>Move CS2 here</b> to relocate the CS2 install onto this volume. The old path is symlinked so nothing else breaks — afterwards click <b>Update Server</b> to finish the repair.</div>';
   } else {
     cand='<div class="hint d-inline-block mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>No unmounted volume detected. If you just attached one, give the provider a minute, then refresh — or it may already be mounted (check the list below).</div>';
   }
@@ -619,11 +632,13 @@ async function loadStorage(){
     '<div class="lbl mt-3 mb-1">Block devices (lsblk)</div>'+term(d.lsblk)+
     '<div class="lbl mt-3 mb-1">Mounted filesystems (df -h)</div>'+term(d.df);
 }
-async function setupVolume(device, sizeGB, formatted){
-  const warn = formatted
-    ? 'It already has a filesystem, so it will be mounted as-is (NOT reformatted).'
-    : 'It is empty, so it will be formatted as ext4 first.';
-  if(!confirm('Use '+device+' ('+sizeGB+' GiB) for CS2?\n\n'+warn+'\n\nThe server stops, CS2 is moved onto the volume, and the old path is symlinked. This can take a while for a large install. Your files are moved, not deleted. Continue?')) return;
+async function setupVolume(device, sizeGB, formatted, mountpoint){
+  const warn = mountpoint
+    ? 'It is already mounted at '+mountpoint+' — CS2 will just be moved there (no formatting).'
+    : (formatted
+        ? 'It already has a filesystem, so it will be mounted as-is (NOT reformatted).'
+        : 'It is empty, so it will be formatted as ext4 first.');
+  if(!confirm('Move CS2 onto '+device+' ('+sizeGB+' GiB)?\n\n'+warn+'\n\nThe server stops, CS2 is moved onto the volume, and the old path is symlinked. This can take a while for a large install. Your files are moved, not deleted. Continue?')) return;
   bootstrap.Modal.getOrCreateInstance($('#storageModal')).hide();
   bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
   $('#updterm').innerHTML='<span class="ln dim">Setting up volume '+esc(device)+'…</span>'; updBadge('run');
