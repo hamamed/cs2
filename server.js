@@ -626,6 +626,31 @@ app.post('/api/cleardownloads', requireAuth, async (req, res) => {
   res.json({ ok: true, diskPct, diskUsed, diskTotal });
 });
 
+// Storage view — block devices + mounts, and detect an attached-but-unmounted
+// volume (the usual reason a freshly added VPS volume "doesn't show up").
+app.get('/api/storage', requireAuth, async (req, res) => {
+  const lsblk = (await sh('lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>/dev/null')).out;
+  const df = (await sh('df -h -x tmpfs -x devtmpfs -x overlay 2>/dev/null')).out;
+  // Parse `lsblk -bpP` to spot unmounted disks that aren't the root disk.
+  let candidates = [];
+  try {
+    const raw = (await sh('lsblk -bpP -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME 2>/dev/null')).out;
+    const rows = raw.split('\n').filter(Boolean).map((ln) => {
+      const o = {}; ln.replace(/(\w+)="([^"]*)"/g, (_, k, v) => { o[k] = v; return ''; }); return o;
+    });
+    const rootDev = rows.find(r => r.MOUNTPOINT === '/');
+    const rootDisk = rootDev ? (rootDev.PKNAME || rootDev.NAME) : '';
+    for (const r of rows) {
+      const sizeGB = (parseInt(r.SIZE || '0', 10) / 1073741824);
+      const isRootFamily = r.NAME === rootDisk || r.PKNAME === rootDisk;
+      if ((r.TYPE === 'disk' || r.TYPE === 'part') && !r.MOUNTPOINT && !isRootFamily && sizeGB >= 5) {
+        candidates.push({ name: r.NAME, sizeGB: Math.round(sizeGB), fstype: r.FSTYPE || '', type: r.TYPE, formatted: !!r.FSTYPE });
+      }
+    }
+  } catch (e) {}
+  res.json({ ok: true, lsblk, df, candidates });
+});
+
 // Demos (GOTV recordings) — list + download
 const DEMO_DIRS = (process.env.DEMO_DIRS || '/home/steam/cs2_server/game/csgo,/home/steam/cs2_server/game/csgo/replays').split(',');
 // Approved demos = published publicly on the share page

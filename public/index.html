@@ -221,6 +221,7 @@
           </div>
           <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
             <button class="btn-soft" onclick="clearDownloads()"><i class="fa-solid fa-broom me-1"></i> Clear workshop downloads</button>
+            <button class="btn-soft" data-bs-toggle="modal" data-bs-target="#storageModal" onclick="loadStorage()"><i class="fa-solid fa-hard-drive me-1"></i> Storage / volumes</button>
             <span class="hint" id="diskInfo"></span>
           </div>
         </div>
@@ -458,6 +459,18 @@
   </div>
 </div>
 
+<!-- ===== STORAGE MODAL ===== -->
+<div class="modal fade" id="storageModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:18px;background:var(--surface)">
+      <div class="card-head"><span class="head-icon ic-teal"><i class="fa-solid fa-hard-drive"></i></span><h6 class="mb-0">Storage &amp; volumes</h6>
+        <button class="btn-soft ms-auto py-1 px-3" onclick="loadStorage()"><i class="fa-solid fa-rotate"></i></button>
+        <button class="btn-soft py-1 px-3" data-bs-dismiss="modal"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="p-3" id="storageBody" style="max-height:70vh;overflow:auto"><div class="text-secondary fw-bold py-2">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== SERVER UPDATE MODAL ===== -->
 <div class="modal fade modal-term" id="updateModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -585,6 +598,25 @@ async function clearDownloads(){
   const r=await api('/api/cleardownloads',{method:'POST'}); const d=await r.json();
   $('#diskInfo').innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Done. Disk now '+(d.diskPct||'?')+'% ('+d.diskUsed+'/'+d.diskTotal+').';
   loadHealth();
+}
+async function loadStorage(){
+  const b=$('#storageBody'); if(!b) return;
+  b.innerHTML='<div class="text-secondary fw-bold py-2"><i class="fa-solid fa-spinner fa-spin me-1"></i>Reading disks…</div>';
+  let d; try{ d=await (await api('/api/storage')).json(); }catch(e){ b.innerHTML='<div class="text-danger fw-bold">Failed to read storage.</div>'; return; }
+  const term=(t)=>`<div class="term-wrap"><div class="term" style="height:auto;max-height:32vh">${esc(t||'(none)').split(/\r?\n/).map(l=>`<span class="ln">${esc(l)||'&nbsp;'}</span>`).join('')}</div></div>`;
+  let cand='';
+  if(d.candidates && d.candidates.length){
+    cand='<div class="lbl mt-1 mb-1"><i class="fa-solid fa-circle-info me-1"></i>Detected attached-but-unmounted volume(s):</div>'+
+      d.candidates.map(c=>`<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
+        `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${c.formatted?('formatted '+esc(c.fstype)):'not formatted'}</span>`+
+        `<span class="ptime">${c.type}</span></div>`).join('')+
+      '<div class="hint d-inline-block mt-2">This is almost certainly your new volume. It needs to be mounted (and formatted first if it says “not formatted”) before CS2 can use it. Send me this screen and I’ll give you the exact next step or a one-click mount.</div>';
+  } else {
+    cand='<div class="hint d-inline-block mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>No unmounted volume detected. If you just attached one, give the provider a minute, then refresh — or it may already be mounted (check the list below).</div>';
+  }
+  b.innerHTML=cand+
+    '<div class="lbl mt-3 mb-1">Block devices (lsblk)</div>'+term(d.lsblk)+
+    '<div class="lbl mt-3 mb-1">Mounted filesystems (df -h)</div>'+term(d.df);
 }
 
 // ---- visual map picker ----
