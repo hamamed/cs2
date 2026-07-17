@@ -55,11 +55,22 @@ function resolveSteamcmd() {
 
 // The full update command. A UPDATE_CMD env override wins; otherwise build one
 // that runs SteamCMD as the game user so downloaded files keep the right owner.
+const UPDATE_TRIES = parseInt(process.env.UPDATE_TRIES || '3', 10);
 function buildUpdateCmd(steamcmd) {
   if (process.env.UPDATE_CMD) return process.env.UPDATE_CMD;
-  const inner = `${steamcmd} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit`;
+  // SteamCMD frequently exits with a transient "state 0x2xx" error (interrupted
+  // download, throttling) and succeeds on a retry, so loop until it reports
+  // "Success! App '730' fully installed" or we run out of attempts.
+  const steam = `${steamcmd} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit`;
+  const loop =
+    `L=$(mktemp); for i in $(seq 1 ${UPDATE_TRIES}); do ` +
+    `echo "[panel] SteamCMD attempt $i of ${UPDATE_TRIES}…"; ` +
+    `${steam} 2>&1 | tee "$L"; ` +               // stream live AND capture for the success check
+    `grep -q "Success! App .730. fully installed" "$L" && { rm -f "$L"; exit 0; }; ` +
+    `echo "[panel] attempt $i did not complete; retrying in 5s…"; sleep 5; ` +
+    `done; rm -f "$L"; exit 1`;
   // Only switch users if we aren't already the steam user (panel usually runs as root).
-  return `if [ "$(id -un)" = "${STEAM_USER}" ]; then ${inner}; else su - ${STEAM_USER} -c '${inner}'; fi`;
+  return `if [ "$(id -un)" = "${STEAM_USER}" ]; then ${loop}; else su - ${STEAM_USER} -c '${loop.replace(/'/g, "'\\''")}'; fi`;
 }
 
 // In-memory state of the currently running / last update job.
@@ -360,6 +371,10 @@ app.post('/api/update', requireAuth, async (req, res) => {
   }
   const updateCmd = buildUpdateCmd(steamcmd);
   push('[panel] Using SteamCMD at: ' + steamcmd);
+  try {
+    const d = (await sh(`df -h ${CS2_DIR} 2>/dev/null || df -h /`)).out.trim().split('\n').pop().split(/\s+/);
+    push(`[panel] Free disk on install volume: ${d[3]} available (of ${d[1]}, ${d[4]} used). A CS2 update needs several GB free.`);
+  } catch (e) {}
   push('[panel] Stopping CS2 server before update…');
   await sh(`systemctl stop ${SERVICE}`);
   liveMap = null; lastStartStamp = null;
@@ -377,6 +392,14 @@ app.post('/api/update', requireAuth, async (req, res) => {
   child.on('error', (e) => push('[panel] SteamCMD error: ' + e.message));
   child.on('close', async (code) => {
     push('[panel] SteamCMD finished (exit code ' + code + ').');
+    const joined = updateJob.log.join('\n');
+    const stateM = joined.match(/state is (0x[0-9a-fA-F]+)/);
+    if (code !== 0 && stateM) {
+      push(`[panel] SteamCMD reported an incomplete update (${stateM[1]}). Common causes:`);
+      push('[panel]   • Not enough free disk space — see the free-disk line above, then use "Clear workshop downloads".');
+      push('[panel]   • Low RAM — the update can be killed on small VPSes; add swap or retry when idle.');
+      push('[panel]   • Steam content servers throttling — just run Update again in a few minutes.');
+    }
     push('[panel] Starting CS2 server…');
     const r = await sh(`systemctl start ${SERVICE}`);
     push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);
