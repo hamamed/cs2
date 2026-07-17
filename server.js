@@ -711,11 +711,20 @@ async function scanVolumes() {
   return out;
 }
 
-// Storage view — block devices + mounts + detected unmounted volumes.
+// Storage view — block devices + mounts + detected unmounted volumes, plus the
+// state of the CS2 install path (is it a symlink? do the game files exist?).
 app.get('/api/storage', requireAuth, async (req, res) => {
   const lsblk = (await sh('lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>/dev/null')).out;
   const df = (await sh('df -h -x tmpfs -x devtmpfs -x overlay 2>/dev/null')).out;
-  res.json({ ok: true, lsblk, df, candidates: await scanVolumes() });
+  const cs2 = {
+    dir: CS2_DIR,
+    ls: (await sh(`ls -la ${CS2_DIR} 2>&1`)).out.trim(),
+    resolved: (await sh(`readlink -f ${CS2_DIR} 2>&1`)).out.trim(),
+    isSymlink: (await sh(`test -L ${CS2_DIR} && echo yes || echo no`)).out.trim() === 'yes',
+    hasBin: (await sh(`test -x ${CS2_DIR}/game/bin/linuxsteamrt64/cs2 && echo yes || echo no`)).out.trim() === 'yes',
+    gameLs: (await sh(`ls ${CS2_DIR}/game/bin/linuxsteamrt64/ 2>&1 | head -20`)).out.trim(),
+  };
+  res.json({ ok: true, lsblk, df, candidates: await scanVolumes(), cs2 });
 });
 
 // One-click: format (if empty) + mount a detected volume, move the CS2 install

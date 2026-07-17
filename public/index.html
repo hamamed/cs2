@@ -628,7 +628,15 @@ async function loadStorage(){
   } else {
     cand='<div class="hint d-inline-block mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>No unmounted volume detected. If you just attached one, give the provider a minute, then refresh — or it may already be mounted (check the list below).</div>';
   }
-  b.innerHTML=cand+
+  let cs2html='';
+  if(d.cs2){
+    const c=d.cs2; const okBin=c.hasBin;
+    cs2html='<div class="lbl mt-3 mb-1">CS2 install path</div>'+
+      '<div class="prow"><span class="pav '+(okBin?'':'bot')+'"><i class="fa-solid '+(okBin?'fa-circle-check':'fa-triangle-exclamation')+'"></i></span>'+
+      '<span class="pname">'+esc(c.dir)+(c.isSymlink?(' → '+esc(c.resolved)):'')+'<br><span style="font-weight:600;color:var(--text-secondary)">Game binary (game/bin/linuxsteamrt64/cs2): '+(okBin?'present ✓':'MISSING ✗ — server can’t start')+'</span></span></div>'+
+      term(c.ls)+'<div class="lbl mt-2 mb-1">game/bin/linuxsteamrt64 contents</div>'+term(c.gameLs);
+  }
+  b.innerHTML=cand+cs2html+
     '<div class="lbl mt-3 mb-1">Block devices (lsblk)</div>'+term(d.lsblk)+
     '<div class="lbl mt-3 mb-1">Mounted filesystems (df -h)</div>'+term(d.df);
 }
