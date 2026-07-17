@@ -65,11 +65,13 @@ The **Update Server** button in the Server Power card runs SteamCMD
 (`app_update 730 validate`) for you: it stops the server, streams the download
 progress live in a console popup, then restarts the server automatically.
 
-It expects SteamCMD at `/home/steam/steamcmd/steamcmd.sh` and the server at
-`/home/steam/cs2_server`, run as the `steam` user. The panel runs as root, so it
-can `su - steam` without a password. Override the paths (or the whole command)
-with the `STEAM_USER` / `STEAMCMD` / `CS2_DIR` / `UPDATE_CMD` environment
-variables in `cs2-panel.service`.
+SteamCMD is auto-detected in the usual locations (`~steam/steamcmd/steamcmd.sh`,
+the apt `steamcmd` package at `/usr/games/steamcmd`, or anything on `PATH`), and
+run as the `steam` user against `/home/steam/cs2_server`. The panel runs as root,
+so it can `su - steam` without a password. If SteamCMD lives somewhere unusual
+or the server dir differs, set `STEAMCMD` / `CS2_DIR` / `STEAM_USER` (or override
+the whole `UPDATE_CMD`) in `cs2-panel.service`. If SteamCMD isn't installed, the
+update console tells you so instead of failing silently.
 
 ## Updating the panel itself later
 ```bash

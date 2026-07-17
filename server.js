@@ -30,10 +30,37 @@ const EDITABLE_KEYS = ['MAP', 'GAME_TYPE', 'GAME_MODE', 'SV_PW', 'RCON_PW', 'POR
 // so downloaded files keep the right ownership. Override any of these via the
 // systemd unit, or set UPDATE_CMD directly for a fully custom command.
 const STEAM_USER = process.env.STEAM_USER || 'steam';
-const STEAMCMD = process.env.STEAMCMD || '/home/steam/steamcmd/steamcmd.sh';
 const CS2_DIR = process.env.CS2_DIR || '/home/steam/cs2_server';
-const UPDATE_CMD = process.env.UPDATE_CMD ||
-  `su - ${STEAM_USER} -c "${STEAMCMD} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit"`;
+
+// Find the SteamCMD executable. Honour an explicit STEAMCMD override, otherwise
+// probe the usual spots (self-installed script, or the apt `steamcmd` package),
+// and finally fall back to `command -v steamcmd` on PATH.
+function resolveSteamcmd() {
+  if (process.env.STEAMCMD) return process.env.STEAMCMD;
+  const home = `/home/${STEAM_USER}`;
+  const candidates = [
+    `${home}/steamcmd/steamcmd.sh`,
+    `${home}/Steam/steamcmd.sh`,
+    `${home}/.steam/steamcmd/steamcmd.sh`,
+    '/home/steam/steamcmd/steamcmd.sh',
+    '/usr/games/steamcmd',
+    '/usr/local/bin/steamcmd',
+    '/usr/bin/steamcmd',
+  ];
+  for (const c of candidates) { try { if (fs.existsSync(c)) return c; } catch (e) {} }
+  const onPath = require('child_process').execSync('command -v steamcmd 2>/dev/null || true', { shell: '/bin/bash' })
+    .toString().trim();
+  return onPath || null;
+}
+
+// The full update command. A UPDATE_CMD env override wins; otherwise build one
+// that runs SteamCMD as the game user so downloaded files keep the right owner.
+function buildUpdateCmd(steamcmd) {
+  if (process.env.UPDATE_CMD) return process.env.UPDATE_CMD;
+  const inner = `${steamcmd} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit`;
+  // Only switch users if we aren't already the steam user (panel usually runs as root).
+  return `if [ "$(id -un)" = "${STEAM_USER}" ]; then ${inner}; else su - ${STEAM_USER} -c '${inner}'; fi`;
+}
 
 // In-memory state of the currently running / last update job.
 let updateJob = null; // { running, done, ok, startedAt, log:[] }
@@ -324,13 +351,22 @@ app.post('/api/update', requireAuth, async (req, res) => {
     for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
     if (updateJob.log.length > 600) updateJob.log = updateJob.log.slice(-600);
   };
+  const steamcmd = resolveSteamcmd();
+  if (!steamcmd) {
+    push('[panel] SteamCMD not found. Install it or set STEAMCMD=/path/to/steamcmd.sh');
+    push('[panel]   e.g.  apt install steamcmd   — or point STEAMCMD at your steamcmd.sh');
+    updateJob.running = false; updateJob.done = true; updateJob.ok = false;
+    return res.json({ ok: false, error: 'SteamCMD not found' });
+  }
+  const updateCmd = buildUpdateCmd(steamcmd);
+  push('[panel] Using SteamCMD at: ' + steamcmd);
   push('[panel] Stopping CS2 server before update…');
   await sh(`systemctl stop ${SERVICE}`);
   liveMap = null; lastStartStamp = null;
   push('[panel] Running SteamCMD update for app 730 — this can take several minutes.');
   let child;
   try {
-    child = spawn('bash', ['-lc', UPDATE_CMD], { stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn('bash', ['-lc', updateCmd], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     push('[panel] Could not launch SteamCMD: ' + e.message);
     updateJob.running = false; updateJob.done = true; updateJob.ok = false;

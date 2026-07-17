@@ -17,11 +17,13 @@ Environment=VARS_FILE=/home/steam/cs2_server/server-vars.conf
 Environment=CS2_SERVICE=cs2
 # ---- "Update Server" button (SteamCMD app_update 730) ----
 # The panel runs as root, so it can `su - steam` to run SteamCMD as the game user.
+# SteamCMD is auto-detected in the usual spots; only set STEAMCMD if it lives
+# somewhere unusual. CS2_DIR is where the server files are installed.
 Environment=STEAM_USER=steam
-Environment=STEAMCMD=/home/steam/steamcmd/steamcmd.sh
 Environment=CS2_DIR=/home/steam/cs2_server
+# Environment=STEAMCMD=/home/steam/steamcmd/steamcmd.sh
 # Or override the whole command:
-# Environment=UPDATE_CMD=su - steam -c "/home/steam/steamcmd/steamcmd.sh +force_install_dir /home/steam/cs2_server +login anonymous +app_update 730 validate +quit"
+# Environment=UPDATE_CMD=su - steam -c "steamcmd +force_install_dir /home/steam/cs2_server +login anonymous +app_update 730 validate +quit"
 
 [Install]
 WantedBy=multi-user.target
