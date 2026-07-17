@@ -62,11 +62,16 @@ function buildUpdateCmd(steamcmd) {
   // download, throttling) and succeeds on a retry, so loop until it reports
   // "Success! App '730' fully installed" or we run out of attempts.
   const steam = `${steamcmd} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit`;
+  // Retry only genuinely transient failures. A "state is 0x2xx" result means the
+  // updater found missing/corrupt files it couldn't finish writing (disk space /
+  // interrupted write) — that's deterministic, so re-verifying the whole 60+ GiB
+  // install would just waste time. Bail out and let the panel explain it.
   const loop =
     `L=$(mktemp); for i in $(seq 1 ${UPDATE_TRIES}); do ` +
     `echo "[panel] SteamCMD attempt $i of ${UPDATE_TRIES}…"; ` +
-    `${steam} 2>&1 | tee "$L"; ` +               // stream live AND capture for the success check
+    `${steam} 2>&1 | tee "$L"; ` +               // stream live AND capture for the checks below
     `grep -q "Success! App .730. fully installed" "$L" && { rm -f "$L"; exit 0; }; ` +
+    `grep -q "state is 0x" "$L" && { echo "[panel] Update stopped with a state error — not transient, so not retrying."; rm -f "$L"; exit 1; }; ` +
     `echo "[panel] attempt $i did not complete; retrying in 5s…"; sleep 5; ` +
     `done; rm -f "$L"; exit 1`;
   // Only switch users if we aren't already the steam user (panel usually runs as root).
@@ -395,10 +400,15 @@ app.post('/api/update', requireAuth, async (req, res) => {
     const joined = updateJob.log.join('\n');
     const stateM = joined.match(/state is (0x[0-9a-fA-F]+)/);
     if (code !== 0 && stateM) {
-      push(`[panel] SteamCMD reported an incomplete update (${stateM[1]}). Common causes:`);
-      push('[panel]   • Not enough free disk space — see the free-disk line above, then use "Clear workshop downloads".');
-      push('[panel]   • Low RAM — the update can be killed on small VPSes; add swap or retry when idle.');
-      push('[panel]   • Steam content servers throttling — just run Update again in a few minutes.');
+      push(`[panel] SteamCMD ended with state ${stateM[1]} — it found files to (re)download but could not finish writing them.`);
+      try {
+        const d = (await sh(`df -h ${CS2_DIR} 2>/dev/null || df -h /`)).out.trim().split('\n').pop().split(/\s+/);
+        push(`[panel] Disk now: ${d[3]} free of ${d[1]} (${d[4]} used). The CS2 server install is ~63 GiB and an update needs several GB of headroom.`);
+      } catch (e) {}
+      push('[panel] Most likely: not enough free disk space. Fix it, then run Update again:');
+      push('[panel]   • Click "Clear workshop downloads" (Health card) to free space, then retry.');
+      push('[panel]   • If the volume is still nearly full, you need a bigger disk — the update can\'t complete without room.');
+      push('[panel]   • If disk is fine but RAM is ≤2 GB, the write may be OOM-killed — add swap and retry.');
     }
     push('[panel] Starting CS2 server…');
     const r = await sh(`systemctl start ${SERVICE}`);
