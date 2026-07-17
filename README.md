@@ -80,6 +80,14 @@ aside, clears workshop downloads to free space, deletes the old ~63 GiB install,
 downloads a clean copy, then restores your preserved files. `start.sh` and
 `server-vars.conf` are never touched.
 
+**Storage / volumes** (Server Health card) shows your disks and detects an
+attached-but-unmounted VPS volume (e.g. a new Hetzner Cloud Volume at
+`/dev/sdb`). Click **Use for CS2** to format it (only if empty), mount it at
+`/mnt/cs2` (override with `VOLUME_MOUNT`), move the CS2 install onto it, and
+symlink the old path back so every hard-coded path keeps working. A `nofail`
+`/etc/fstab` entry is added so it survives reboots. Files are *moved*, never
+deleted, and the setup aborts safely if the volume is too small.
+
 ## Updating the panel itself later
 ```bash
 cd /opt/cs2-panel && git pull && npm install && systemctl restart cs2-panel

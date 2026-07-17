@@ -114,6 +114,34 @@ function buildReinstallCmd(steamcmd) {
   return asSteam(script);
 }
 
+// Root-run script: format (only if empty) + mount `device` at `mp`, then move
+// the CS2 dir `src` onto it and replace `src` with a symlink so every hard-coded
+// path keeps working. Bails out safely (nothing deleted) on any problem.
+function buildVolumeSetupScript(device, mp, src) {
+  return [
+    `DEV="${device}"; MP="${mp}"; SRC="${src}"`,
+    `if [ -L "$SRC" ]; then echo "[panel] $SRC is already a symlink — looks already migrated. Aborting."; exit 3; fi`,
+    `mkdir -p "$MP"`,
+    // Only format when there is no filesystem yet — never wipe an existing one.
+    `if blkid "$DEV" >/dev/null 2>&1; then echo "[panel] $DEV already has a filesystem — keeping it (not formatting)."; ` +
+      `else echo "[panel] $DEV is empty — formatting ext4…"; mkfs.ext4 -F "$DEV" || { echo "[panel] mkfs failed."; exit 4; }; fi`,
+    `mount -o discard,defaults "$DEV" "$MP" || { echo "[panel] mount failed."; exit 5; }`,
+    `UUID=$(blkid -s UUID -o value "$DEV"); echo "[panel] Mounted $DEV at $MP (UUID=$UUID)."`,
+    // Make sure CS2 actually fits on the volume before touching anything.
+    `NEED=$(du -sb "$SRC" 2>/dev/null | cut -f1); FREE=$(df -B1 --output=avail "$MP" | tail -1 | tr -d " ")`,
+    `echo "[panel] CS2 needs $((NEED/1073741824)) GiB; volume has $((FREE/1073741824)) GiB free."`,
+    `if [ "\${NEED:-0}" -gt "\${FREE:-0}" ]; then echo "[panel] Volume too small — aborting, nothing moved."; umount "$MP"; exit 6; fi`,
+    `echo "[panel] Moving CS2 onto the volume — this can take a while for a large install…"`,
+    `mv "$SRC" "$MP/$(basename "$SRC")" || { echo "[panel] Move failed — leaving everything as-is."; exit 7; }`,
+    `ln -s "$MP/$(basename "$SRC")" "$SRC"`,
+    `chown -h ${STEAM_USER}:${STEAM_USER} "$SRC"; chown -R ${STEAM_USER}:${STEAM_USER} "$MP/$(basename "$SRC")"`,
+    // Persist across reboots, with nofail so a detached volume never blocks boot.
+    `grep -q "$UUID" /etc/fstab || echo "UUID=$UUID $MP ext4 discard,nofail,defaults 0 2" >> /etc/fstab`,
+    `echo "[panel] Done — CS2 now lives on the volume (via a symlink at $SRC)."`,
+    `exit 0`,
+  ].join('\n');
+}
+
 // In-memory state of the currently running / last update job.
 let updateJob = null; // { running, done, ok, startedAt, log:[] }
 
@@ -626,13 +654,10 @@ app.post('/api/cleardownloads', requireAuth, async (req, res) => {
   res.json({ ok: true, diskPct, diskUsed, diskTotal });
 });
 
-// Storage view — block devices + mounts, and detect an attached-but-unmounted
-// volume (the usual reason a freshly added VPS volume "doesn't show up").
-app.get('/api/storage', requireAuth, async (req, res) => {
-  const lsblk = (await sh('lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>/dev/null')).out;
-  const df = (await sh('df -h -x tmpfs -x devtmpfs -x overlay 2>/dev/null')).out;
-  // Parse `lsblk -bpP` to spot unmounted disks that aren't the root disk.
-  let candidates = [];
+// Scan for attached-but-unmounted volumes that aren't part of the root disk —
+// the usual reason a freshly added VPS volume "doesn't show up" in df.
+async function scanVolumes() {
+  const out = [];
   try {
     const raw = (await sh('lsblk -bpP -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME 2>/dev/null')).out;
     const rows = raw.split('\n').filter(Boolean).map((ln) => {
@@ -644,11 +669,64 @@ app.get('/api/storage', requireAuth, async (req, res) => {
       const sizeGB = (parseInt(r.SIZE || '0', 10) / 1073741824);
       const isRootFamily = r.NAME === rootDisk || r.PKNAME === rootDisk;
       if ((r.TYPE === 'disk' || r.TYPE === 'part') && !r.MOUNTPOINT && !isRootFamily && sizeGB >= 5) {
-        candidates.push({ name: r.NAME, sizeGB: Math.round(sizeGB), fstype: r.FSTYPE || '', type: r.TYPE, formatted: !!r.FSTYPE });
+        out.push({ name: r.NAME, sizeGB: Math.round(sizeGB), fstype: r.FSTYPE || '', type: r.TYPE, formatted: !!r.FSTYPE });
       }
     }
   } catch (e) {}
-  res.json({ ok: true, lsblk, df, candidates });
+  return out;
+}
+
+// Storage view — block devices + mounts + detected unmounted volumes.
+app.get('/api/storage', requireAuth, async (req, res) => {
+  const lsblk = (await sh('lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>/dev/null')).out;
+  const df = (await sh('df -h -x tmpfs -x devtmpfs -x overlay 2>/dev/null')).out;
+  res.json({ ok: true, lsblk, df, candidates: await scanVolumes() });
+});
+
+// One-click: format (if empty) + mount a detected volume, move the CS2 install
+// onto it, and symlink the old path back so every hard-coded path still works.
+// Streams progress into updateJob (reuses the update console + poller).
+app.post('/api/volume/setup', requireAuth, async (req, res) => {
+  if (updateJob && updateJob.running) return res.json({ ok: false, error: 'A job is already running.' });
+  const device = String((req.body && req.body.device) || '');
+  // Only allow a device our own scan flagged as a safe, unmounted, non-root volume.
+  const vols = await scanVolumes();
+  const vol = vols.find(v => v.name === device);
+  if (!/^\/dev\/[a-zA-Z0-9/_-]+$/.test(device) || !vol) {
+    return res.status(400).json({ ok: false, error: 'That device is not a recognised unmounted volume.' });
+  }
+  updateJob = { running: true, done: false, ok: false, startedAt: Date.now(), log: [] };
+  const push = (chunk) => {
+    for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
+    if (updateJob.log.length > 800) updateJob.log = updateJob.log.slice(-800);
+  };
+  const MP = process.env.VOLUME_MOUNT || '/mnt/cs2';
+  const SRC = CS2_DIR;
+  push(`[panel] Setting up volume ${device} (${vol.sizeGB} GiB) for CS2…`);
+  push('[panel] Stopping CS2 server…');
+  await sh(`systemctl stop ${SERVICE}`);
+  liveMap = null; lastStartStamp = null;
+  const script = buildVolumeSetupScript(device, MP, SRC);
+  let child;
+  try { child = spawn('bash', ['-lc', script], { stdio: ['ignore', 'pipe', 'pipe'] }); }
+  catch (e) {
+    push('[panel] Could not start: ' + e.message);
+    updateJob.running = false; updateJob.done = true; updateJob.ok = false;
+    return res.json({ ok: false, error: e.message });
+  }
+  child.stdout.on('data', push);
+  child.stderr.on('data', push);
+  child.on('error', (e) => push('[panel] Error: ' + e.message));
+  child.on('close', async (code) => {
+    updateJob.ok = (code === 0);
+    if (code === 0) push('[panel] Volume ready. Starting CS2 server, then run Update to finish the repair.');
+    else push('[panel] Volume setup did not complete (exit ' + code + '). Nothing was deleted; your files are intact.');
+    push('[panel] Starting CS2 server…');
+    const r = await sh(`systemctl start ${SERVICE}`);
+    push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);
+    updateJob.running = false; updateJob.done = true;
+  });
+  res.json({ ok: true, started: true });
 });
 
 // Demos (GOTV recordings) — list + download

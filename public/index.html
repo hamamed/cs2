@@ -609,14 +609,27 @@ async function loadStorage(){
     cand='<div class="lbl mt-1 mb-1"><i class="fa-solid fa-circle-info me-1"></i>Detected attached-but-unmounted volume(s):</div>'+
       d.candidates.map(c=>`<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
         `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${c.formatted?('formatted '+esc(c.fstype)):'not formatted'}</span>`+
-        `<span class="ptime">${c.type}</span></div>`).join('')+
-      '<div class="hint d-inline-block mt-2">This is almost certainly your new volume. It needs to be mounted (and formatted first if it says “not formatted”) before CS2 can use it. Send me this screen and I’ll give you the exact next step or a one-click mount.</div>';
+        `<span class="ptime">${c.type}</span>`+
+        `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted})'><i class="fa-solid fa-download me-1"></i>Use for CS2</button></div>`).join('')+
+      '<div class="hint d-inline-block mt-2">Click <b>Use for CS2</b> to mount this volume and move the CS2 install onto it (formats only if it’s empty). The old path is symlinked so nothing else breaks — afterwards just click <b>Update Server</b> to finish the repair.</div>';
   } else {
     cand='<div class="hint d-inline-block mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>No unmounted volume detected. If you just attached one, give the provider a minute, then refresh — or it may already be mounted (check the list below).</div>';
   }
   b.innerHTML=cand+
     '<div class="lbl mt-3 mb-1">Block devices (lsblk)</div>'+term(d.lsblk)+
     '<div class="lbl mt-3 mb-1">Mounted filesystems (df -h)</div>'+term(d.df);
+}
+async function setupVolume(device, sizeGB, formatted){
+  const warn = formatted
+    ? 'It already has a filesystem, so it will be mounted as-is (NOT reformatted).'
+    : 'It is empty, so it will be formatted as ext4 first.';
+  if(!confirm('Use '+device+' ('+sizeGB+' GiB) for CS2?\n\n'+warn+'\n\nThe server stops, CS2 is moved onto the volume, and the old path is symlinked. This can take a while for a large install. Your files are moved, not deleted. Continue?')) return;
+  bootstrap.Modal.getOrCreateInstance($('#storageModal')).hide();
+  bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
+  $('#updterm').innerHTML='<span class="ln dim">Setting up volume '+esc(device)+'…</span>'; updBadge('run');
+  const r=await api('/api/volume/setup',{method:'POST',body:JSON.stringify({device})}); const d=await r.json();
+  if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start')+'</span>'; updBadge('err'); return; }
+  pollUpdate();
 }
 
 // ---- visual map picker ----
