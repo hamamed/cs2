@@ -74,8 +74,44 @@ function buildUpdateCmd(steamcmd) {
     `grep -q "state is 0x" "$L" && { echo "[panel] Update stopped with a state error — not transient, so not retrying."; rm -f "$L"; exit 1; }; ` +
     `echo "[panel] attempt $i did not complete; retrying in 5s…"; sleep 5; ` +
     `done; rm -f "$L"; exit 1`;
-  // Only switch users if we aren't already the steam user (panel usually runs as root).
-  return `if [ "$(id -un)" = "${STEAM_USER}" ]; then ${loop}; else su - ${STEAM_USER} -c '${loop.replace(/'/g, "'\\''")}'; fi`;
+  return asSteam(loop);
+}
+
+// Run a shell script as the game user. The panel usually runs as root, so it
+// `su - ${STEAM_USER}`; if it's already that user, run the script directly.
+function asSteam(script) {
+  return `if [ "$(id -un)" = "${STEAM_USER}" ]; then ${script}; else su - ${STEAM_USER} -c '${script.replace(/'/g, "'\\''")}'; fi`;
+}
+
+// Delete Steam's game files and download a fresh copy, preserving the user's
+// configs, plugins (addons/) and demos by moving them aside first (instant on
+// the same filesystem — no extra disk needed). Fixes a corrupt install and,
+// because the old 60+ GiB is deleted before the download, keeps disk use flat.
+function buildReinstallCmd(steamcmd) {
+  const steam = `${steamcmd} +force_install_dir ${CS2_DIR} +login anonymous +app_update 730 validate +quit`;
+  const keep = `${CS2_DIR}_reinstall_keep`;
+  const csgo = `${CS2_DIR}/game/csgo`;
+  const script =
+    `KEEP="${keep}"; CSGO="${csgo}"; ` +
+    `echo "[panel] Preserving plugins, configs and demos…"; ` +
+    `rm -rf "$KEEP"; mkdir -p "$KEEP/demos"; ` +
+    `[ -e "$CSGO/addons" ] && mv "$CSGO/addons" "$KEEP/addons" && echo "[panel]   kept addons/ (plugins)"; ` +
+    `[ -e "$CSGO/cfg" ] && mv "$CSGO/cfg" "$KEEP/cfg" && echo "[panel]   kept cfg/"; ` +
+    `[ -e "$CSGO/gamemodes_server.txt" ] && mv "$CSGO/gamemodes_server.txt" "$KEEP/gamemodes_server.txt"; ` +
+    `N=$(find "$CSGO" -maxdepth 2 -name "*.dem" 2>/dev/null | wc -l); find "$CSGO" -maxdepth 2 -name "*.dem" -exec mv -t "$KEEP/demos" {} + 2>/dev/null; echo "[panel]   kept $N demo(s)"; ` +
+    `echo "[panel] Freeing disk space (clearing workshop downloads)…"; ` +
+    `rm -rf "${CS2_DIR}/steamapps/workshop/downloads/"* 2>/dev/null; rm -rf "$HOME/.steam/steam/steamapps/workshop/downloads/"* 2>/dev/null; ` +
+    `echo "[panel] Deleting old game files…"; rm -rf "${CS2_DIR}/game" "${CS2_DIR}/steamapps"; ` +
+    `echo "[panel] Downloading a FRESH CS2 install — full ~63 GiB download, this can take a long time…"; ` +
+    `${steam} 2>&1 | tee "$KEEP/steam.log"; ` +
+    `if grep -q "Success! App .730. fully installed" "$KEEP/steam.log"; then CODE=0; else CODE=1; fi; ` +
+    `echo "[panel] Restoring your plugins, configs and demos…"; mkdir -p "$CSGO"; ` +
+    `[ -e "$KEEP/addons" ] && { rm -rf "$CSGO/addons"; mv "$KEEP/addons" "$CSGO/addons"; }; ` +
+    `[ -e "$KEEP/cfg" ] && { mkdir -p "$CSGO/cfg"; cp -rf "$KEEP/cfg/." "$CSGO/cfg/"; }; ` +
+    `[ -e "$KEEP/gamemodes_server.txt" ] && mv "$KEEP/gamemodes_server.txt" "$CSGO/gamemodes_server.txt"; ` +
+    `mv "$KEEP/demos/"*.dem "$CSGO/" 2>/dev/null; ` +
+    `rm -rf "$KEEP"; echo "[panel] Restore complete."; exit $CODE`;
+  return asSteam(script);
 }
 
 // In-memory state of the currently running / last update job.
@@ -357,15 +393,15 @@ app.post('/api/control', requireAuth, async (req, res) => {
   res.json({ ok: r.ok, out: r.out || `${action} sent` });
 });
 
-// Update the CS2 server files via SteamCMD (app 730).
-// Stops the server, runs SteamCMD in the background streaming output into
-// updateJob.log, then restarts the server. Poll /api/update/status for progress.
-app.post('/api/update', requireAuth, async (req, res) => {
+// Shared runner for SteamCMD jobs (update / reinstall). Stops the server, runs
+// the built command in the background streaming output into updateJob.log, then
+// restarts the server. Poll /api/update/status for progress.
+async function runSteamJob(res, { startMsg, buildCmd }) {
   if (updateJob && updateJob.running) return res.json({ ok: true, already: true });
   updateJob = { running: true, done: false, ok: false, startedAt: Date.now(), log: [] };
   const push = (chunk) => {
     for (const ln of String(chunk).split(/\r?\n/)) if (ln !== '') updateJob.log.push(ln);
-    if (updateJob.log.length > 600) updateJob.log = updateJob.log.slice(-600);
+    if (updateJob.log.length > 800) updateJob.log = updateJob.log.slice(-800);
   };
   const steamcmd = resolveSteamcmd();
   if (!steamcmd) {
@@ -374,19 +410,18 @@ app.post('/api/update', requireAuth, async (req, res) => {
     updateJob.running = false; updateJob.done = true; updateJob.ok = false;
     return res.json({ ok: false, error: 'SteamCMD not found' });
   }
-  const updateCmd = buildUpdateCmd(steamcmd);
   push('[panel] Using SteamCMD at: ' + steamcmd);
   try {
     const d = (await sh(`df -h ${CS2_DIR} 2>/dev/null || df -h /`)).out.trim().split('\n').pop().split(/\s+/);
-    push(`[panel] Free disk on install volume: ${d[3]} available (of ${d[1]}, ${d[4]} used). A CS2 update needs several GB free.`);
+    push(`[panel] Free disk on install volume: ${d[3]} available (of ${d[1]}, ${d[4]} used).`);
   } catch (e) {}
-  push('[panel] Stopping CS2 server before update…');
+  push('[panel] Stopping CS2 server…');
   await sh(`systemctl stop ${SERVICE}`);
   liveMap = null; lastStartStamp = null;
-  push('[panel] Running SteamCMD update for app 730 — this can take several minutes.');
+  push(startMsg);
   let child;
   try {
-    child = spawn('bash', ['-lc', updateCmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn('bash', ['-lc', buildCmd(steamcmd)], { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     push('[panel] Could not launch SteamCMD: ' + e.message);
     updateJob.running = false; updateJob.done = true; updateJob.ok = false;
@@ -398,27 +433,40 @@ app.post('/api/update', requireAuth, async (req, res) => {
   child.on('close', async (code) => {
     push('[panel] SteamCMD finished (exit code ' + code + ').');
     const joined = updateJob.log.join('\n');
+    const ok = /Success! App .730. fully installed/.test(joined) && code === 0;
     const stateM = joined.match(/state is (0x[0-9a-fA-F]+)/);
-    if (code !== 0 && stateM) {
+    if (!ok && stateM) {
       push(`[panel] SteamCMD ended with state ${stateM[1]} — it found files to (re)download but could not finish writing them.`);
       try {
         const d = (await sh(`df -h ${CS2_DIR} 2>/dev/null || df -h /`)).out.trim().split('\n').pop().split(/\s+/);
-        push(`[panel] Disk now: ${d[3]} free of ${d[1]} (${d[4]} used). The CS2 server install is ~63 GiB and an update needs several GB of headroom.`);
+        push(`[panel] Disk now: ${d[3]} free of ${d[1]} (${d[4]} used). The CS2 install is ~63 GiB and needs several GB of headroom.`);
       } catch (e) {}
-      push('[panel] Most likely: not enough free disk space. Fix it, then run Update again:');
-      push('[panel]   • Click "Clear workshop downloads" (Health card) to free space, then retry.');
-      push('[panel]   • If the volume is still nearly full, you need a bigger disk — the update can\'t complete without room.');
-      push('[panel]   • If disk is fine but RAM is ≤2 GB, the write may be OOM-killed — add swap and retry.');
+      push('[panel] Most likely not enough free disk space. If the volume is nearly full, you need a bigger disk;');
+      push('[panel] if disk is fine but RAM is ≤2 GB, the write may be OOM-killed — add swap and retry.');
     }
     push('[panel] Starting CS2 server…');
     const r = await sh(`systemctl start ${SERVICE}`);
     push(r.ok ? '[panel] Server started.' : '[panel] Server start failed: ' + r.out);
-    updateJob.ok = (code === 0);
+    updateJob.ok = ok;
     updateJob.running = false;
     updateJob.done = true;
   });
   res.json({ ok: true, started: true });
-});
+}
+
+// Update the CS2 server files via SteamCMD (app 730).
+app.post('/api/update', requireAuth, (req, res) =>
+  runSteamJob(res, {
+    startMsg: '[panel] Running SteamCMD update for app 730 — this can take several minutes.',
+    buildCmd: buildUpdateCmd,
+  }));
+
+// Delete + fresh reinstall (preserves configs, plugins and demos).
+app.post('/api/reinstall', requireAuth, (req, res) =>
+  runSteamJob(res, {
+    startMsg: '[panel] Reinstalling CS2 — keeping your configs, plugins and demos, then downloading a fresh copy.',
+    buildCmd: buildReinstallCmd,
+  }));
 
 // Progress of the current / last update job
 app.get('/api/update/status', requireAuth, (req, res) => {

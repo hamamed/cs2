@@ -73,6 +73,13 @@ or the server dir differs, set `STEAMCMD` / `CS2_DIR` / `STEAM_USER` (or overrid
 the whole `UPDATE_CMD`) in `cs2-panel.service`. If SteamCMD isn't installed, the
 update console tells you so instead of failing silently.
 
+**Reinstall** (next to Update) deletes Steam's game files and downloads a fresh
+copy — use it when an update keeps failing with a `state 0x2xx` (corrupt/missing
+files) error. It first moves your `addons/` (plugins), `cfg/` and `.dem` demos
+aside, clears workshop downloads to free space, deletes the old ~63 GiB install,
+downloads a clean copy, then restores your preserved files. `start.sh` and
+`server-vars.conf` are never touched.
+
 ## Updating the panel itself later
 ```bash
 cd /opt/cs2-panel && git pull && npm install && systemctl restart cs2-panel

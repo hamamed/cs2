@@ -238,6 +238,7 @@
             <button class="btn-accent" onclick="ctl('restart')"><i class="fa-solid fa-rotate me-1"></i> Restart</button>
             <button class="btn-c c-gold" onclick="practice()"><i class="fa-solid fa-bullseye me-1"></i> Practice Mode</button>
             <button class="btn-soft" onclick="startUpdate()" title="Update CS2 server files via SteamCMD (server restarts)"><i class="fa-solid fa-cloud-arrow-down me-1"></i> Update Server</button>
+            <button class="btn-soft" onclick="startReinstall()" title="Delete game files and download a fresh copy (keeps configs, plugins & demos)"><i class="fa-solid fa-arrows-rotate me-1"></i> Reinstall</button>
             <span class="conn ms-auto" id="connstr" onclick="copyConn()" title="Click to copy"><i class="fa-solid fa-copy"></i><span id="conntext">connect …</span></span>
           </div>
         </div>
@@ -659,13 +660,20 @@ function updBadge(state){ const b=$('#updBadge'); if(!b)return;
   else if(state==='ok'){ b.className='status-pill pill-on'; b.innerHTML='<i class="fa-solid fa-circle-check"></i> Update complete'; }
   else if(state==='err'){ b.className='status-pill pill-off'; b.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i> Finished with errors'; }
   else { b.className='status-pill pill-off'; b.innerHTML='<span class="dot"></span> Idle'; } }
+async function runSteamJob(endpoint, startLine){
+  bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
+  $('#updterm').innerHTML='<span class="ln dim">'+startLine+'</span>'; updBadge('run');
+  const r=await api(endpoint,{method:'POST'}); const d=await r.json();
+  if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start')+'</span>'; updBadge('err'); return; }
+  pollUpdate();
+}
 async function startUpdate(){
   if(!confirm('Update the CS2 server now?\n\nThe server will go OFFLINE while SteamCMD downloads updates (this can take several minutes), then it restarts automatically.')) return;
-  bootstrap.Modal.getOrCreateInstance($('#updateModal')).show();
-  $('#updterm').innerHTML='<span class="ln dim">Starting update…</span>'; updBadge('run');
-  const r=await api('/api/update',{method:'POST'}); const d=await r.json();
-  if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start update')+'</span>'; updBadge('err'); return; }
-  pollUpdate();
+  runSteamJob('/api/update','Starting update…');
+}
+async function startReinstall(){
+  if(!confirm('Reinstall CS2 from scratch?\n\nThis DELETES the game files and downloads a fresh ~63 GiB copy — it can take a long time and the server stays OFFLINE throughout.\n\nYour configs, plugins (addons) and demos are preserved. Continue?')) return;
+  runSteamJob('/api/reinstall','Starting reinstall…');
 }
 async function resumeUpdate(){ // if an update is still running (e.g. after a page reload), reopen the console
   let d; try{ d=await (await api('/api/update/status')).json(); }catch(e){ return; }
