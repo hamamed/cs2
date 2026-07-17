@@ -832,6 +832,19 @@ app.post('/api/volume/setup', requireAuth, async (req, res) => {
   res.json({ ok: true, started: true });
 });
 
+// Quick network speed test — downloads ~50 MB from Cloudflare and reports the
+// throughput, so we can tell "VPS internet is slow" from "Steam CDN is slow".
+app.get('/api/speedtest', requireAuth, (req, res) => {
+  const bytes = 52428800; // 50 MB
+  const url = `https://speed.cloudflare.com/__down?bytes=${bytes}`;
+  exec(`curl -s --max-time 35 -o /dev/null -w '%{speed_download} %{time_total} %{size_download}' '${url}'`,
+    { timeout: 45000 }, (err, stdout) => {
+      const p = String(stdout || '').trim().split(/\s+/).map(Number);
+      const bps = p[0] || 0, time = p[1] || 0, size = p[2] || 0;
+      res.json({ ok: bps > 0, mbitPerSec: bps ? +(bps * 8 / 1e6).toFixed(1) : null, seconds: +time.toFixed(1), mb: Math.round(size / 1048576) });
+    });
+});
+
 // Grow a volume's ext4 filesystem to fill the whole device (after resizing the
 // volume in the provider dashboard). Fast, non-destructive, no download.
 app.post('/api/volume/grow', requireAuth, async (req, res) => {

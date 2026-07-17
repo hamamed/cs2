@@ -226,6 +226,7 @@
           <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
             <button class="btn-soft" onclick="clearDownloads()"><i class="fa-solid fa-broom me-1"></i> Clear workshop downloads</button>
             <button class="btn-soft" data-bs-toggle="modal" data-bs-target="#storageModal" onclick="loadStorage()"><i class="fa-solid fa-hard-drive me-1"></i> Storage / volumes</button>
+            <button class="btn-soft" onclick="speedTest()" id="spdBtn"><i class="fa-solid fa-gauge-high me-1"></i> Speed test</button>
             <span class="hint" id="diskInfo"></span>
           </div>
         </div>
@@ -609,6 +610,19 @@ async function clearDownloads(){
   const r=await api('/api/cleardownloads',{method:'POST'}); const d=await r.json();
   $('#diskInfo').innerHTML='<i class="fa-solid fa-circle-check me-1"></i>Done. Disk now '+(d.diskPct||'?')+'% ('+d.diskUsed+'/'+d.diskTotal+').';
   loadHealth();
+}
+async function speedTest(){
+  const btn=$('#spdBtn'), info=$('#diskInfo'); const old=btn.innerHTML;
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Testing… (~50MB)'; btn.disabled=true;
+  info.innerHTML='';
+  let d; try{ d=await (await api('/api/speedtest')).json(); }catch(e){ d=null; }
+  btn.innerHTML=old; btn.disabled=false;
+  if(!d||!d.ok){ info.innerHTML='<i class="fa-solid fa-triangle-exclamation me-1"></i>Speed test failed (is curl installed?).'; return; }
+  const m=d.mbitPerSec; const verdict = m>=300?'Excellent — your VPS internet is fast; a slow Steam download is Steam’s CDN, not your network.'
+    : m>=100?'Good. Slow Steam downloads are likely Steam’s CDN or the disk-verify step, not your connection.'
+    : m>=25?'Moderate. Downloads will take a while, but this is workable.'
+    : 'Slow — this looks like a genuine network bottleneck. Consider a Steam download-region change or contact Hetzner.';
+  info.innerHTML='<i class="fa-solid fa-gauge-high me-1"></i>Download: <b>'+m+' Mbit/s</b> ('+d.mb+'MB in '+d.seconds+'s). '+verdict;
 }
 async function loadStorage(){
   const b=$('#storageBody'); if(!b) return;
