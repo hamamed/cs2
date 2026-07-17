@@ -178,6 +178,10 @@ function buildFreshInstallScript({ steamcmd, device, mp, mount, src }) {
     lines.push(`mountpoint -q "$MP" || { echo "[panel] $MP is not mounted — aborting."; exit 5; }`);
   }
   lines.push(
+    // Grow the ext4 filesystem to fill the whole device — the usual reason a
+    // resized cloud volume still shows its old (smaller) size. No-op if already full.
+    `echo "[panel] Growing filesystem on $DEV to fill the volume (if needed)…"`,
+    `resize2fs "$DEV" 2>&1 | sed "s/^/[resize2fs] /" || echo "[panel] resize2fs not applicable — continuing."`,
     `REAL=$(readlink -f "$SRC" 2>/dev/null); [ -z "$REAL" ] && REAL="$SRC"`,
     `echo "[panel] Current install is at: $REAL"`,
     `echo "[panel] Preserving configs, plugins and demos…"`,
@@ -826,6 +830,20 @@ app.post('/api/volume/setup', requireAuth, async (req, res) => {
     updateJob.running = false; updateJob.done = true;
   });
   res.json({ ok: true, started: true });
+});
+
+// Grow a volume's ext4 filesystem to fill the whole device (after resizing the
+// volume in the provider dashboard). Fast, non-destructive, no download.
+app.post('/api/volume/grow', requireAuth, async (req, res) => {
+  const device = String((req.body && req.body.device) || '');
+  const vol = (await scanVolumes()).find(v => v.name === device);
+  if (!/^\/dev\/[a-zA-Z0-9/_-]+$/.test(device) || !vol) {
+    return res.status(400).json({ ok: false, error: 'That device is not a recognised volume.' });
+  }
+  const before = await diskFor(vol.mountpoint || device);
+  const r = await sh(`resize2fs ${device} 2>&1`);
+  const after = await diskFor(vol.mountpoint || device);
+  res.json({ ok: r.ok, out: r.out.trim(), before, after });
 });
 
 // One-click: DELETE the current (possibly broken) install and put a FRESH CS2

@@ -622,6 +622,7 @@ async function loadStorage(){
         const where = c.mountpoint ? ('mounted at '+esc(c.mountpoint)) : (c.formatted?('formatted '+esc(c.fstype)+', not mounted'):'empty, not mounted');
         return `<div class="prow"><span class="pav"><i class="fa-solid fa-hard-drive"></i></span>`+
         `<span class="pname">${esc(c.name)} · ${c.sizeGB} GiB · ${where}</span>`+
+        `<button class="kick" style="background:#fff3d6;color:var(--gold)" onclick='growVolume(${JSON.stringify(c.name)})' title="Grow the filesystem to fill the volume (after resizing it in the dashboard)"><i class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>Grow</button>`+
         `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='setupVolume(${JSON.stringify(c.name)},${c.sizeGB},${c.formatted},${JSON.stringify(c.mountpoint||"")})' title="Move the existing install onto this volume">Move here</button>`+
         `<button class="kick" style="background:#fdecee;color:var(--red)" onclick='freshInstall(${JSON.stringify(c.name)},${c.sizeGB},${JSON.stringify(c.mountpoint||"")})' title="Delete game files and download a fresh copy onto this volume"><i class="fa-solid fa-download me-1"></i>Fresh install here</button></div>`;
       }).join('')+
@@ -654,6 +655,15 @@ async function setupVolume(device, sizeGB, formatted, mountpoint){
   const r=await api('/api/volume/setup',{method:'POST',body:JSON.stringify({device})}); const d=await r.json();
   if(!d.ok){ $('#updterm').innerHTML='<span class="ln err">'+esc(d.error||'Failed to start')+'</span>'; updBadge('err'); return; }
   pollUpdate();
+}
+async function growVolume(device){
+  if(!confirm('Grow the filesystem on '+device+' to fill the whole volume?\n\nUse this after you enlarged the volume in the Hetzner dashboard but df still shows the old size. This is safe and non-destructive.')) return;
+  const r=await api('/api/volume/grow',{method:'POST',body:JSON.stringify({device})}); const d=await r.json();
+  if(d.ok){
+    const b=d.before, a=d.after;
+    alert('Done.\n\nBefore: '+(b?b.total+' ('+b.pct+'% used)':'?')+'\nAfter:  '+(a?a.total+' ('+a.pct+'% used)':'?')+'\n\n'+(d.out||''));
+    loadStorage(); loadHealth();
+  } else alert('Grow failed:\n\n'+(d.out||d.error||'unknown error'));
 }
 async function freshInstall(device, sizeGB, mountpoint){
   const where = mountpoint ? ('the volume mounted at '+mountpoint) : (device+' (will be mounted)');
