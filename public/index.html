@@ -596,12 +596,12 @@ function recordPlayer(name){ const safe=(name||'player').replace(/[^a-zA-Z0-9_]/
   quick('tv_record '+fn); appendCout('<span class="ln ok">⏺ recording '+esc(fn)+'.dem — captures the whole match, labelled for '+esc(name)+'. Click Stop when done.</span>'); }
 function stopRecord(){ quick('tv_stoprecord'); appendCout('<span class="ln info">⏹ stopped recording</span>'); setTimeout(loadDemosInline,1500); }
 async function fixRecording(){
-  if(!confirm('Enable GOTV recording?\n\nThis makes sure SourceTV is on (required for tv_record). If start.sh needs the flag added, the server restarts ONCE. Players will reconnect after ~15s.')) return;
-  appendCout('<span class="ln dim">Enabling GOTV…</span>');
+  if(!confirm('Enable GOTV recording?\n\nThis writes the GOTV settings into server.cfg and restarts the server ONCE so SourceTV actually starts. Players reconnect after ~15-20s. Then use ● Rec.')) return;
+  appendCout('<span class="ln dim">Enabling GOTV (writing server.cfg + restarting)…</span>');
   let d; try{ d=await (await api('/api/fixrecording',{method:'POST'})).json(); }catch(e){ d=null; }
   if(!d||!d.ok){ alert('Could not enable recording.'); return; }
   appendCout('<span class="ln ok">'+esc(d.message||'done')+'</span>');
-  alert(d.message + (d.restarted?'\n\nDone — recording is ready. Use ● Rec to start.':'\n\nRecording is ready. Use ● Rec to start.'));
+  alert(d.message+'\n\nWait ~20s for the map to load, THEN click ● Rec. tv_record should now work (no more “GOTV not active”).');
 }
 
 // ---- server health ----

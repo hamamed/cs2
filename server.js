@@ -932,39 +932,58 @@ app.get('/api/demos', requireAuth, (req, res) => {
   const ap = new Set(readApproved());
   res.json({ ok: true, demos: listDemos().map(d => ({ ...d, approved: ap.has(d.name) })) });
 });
-// Ensure GOTV is enabled so tv_record works: check the running server, and if
-// it's off, patch start.sh to add the tv_* launch flags and restart. A fresh
-// install can drop server.cfg (which used to enable it), breaking recording.
+// GOTV settings block written into server.cfg. In CS2 tv_enable reliably starts
+// GOTV only when loaded from an exec'd cfg at map load — a launch arg alone
+// often leaves "GOTV not active". tv_delay 0 lets the master record instantly.
+const GOTV_MARK = '// --- GOTV (managed by cs2-panel) ---';
+const GOTV_BLOCK = [
+  GOTV_MARK,
+  'tv_enable 1',
+  'tv_delay 0',
+  'tv_autorecord 1',
+  'tv_dispatchmode 1',
+  'tv_transmitall 1',
+  'tv_name "CS2 GOTV"',
+  '// --- end GOTV ---',
+].join('\n');
+
+// Ensure GOTV is on so tv_record works: write the GOTV block into server.cfg,
+// make sure start.sh execs it + carries the tv_* flags, then restart once.
 app.post('/api/fixrecording', requireAuth, async (req, res) => {
   const startSh = `${CS2_DIR}/start.sh`;
+  const cfgDir = `${CS2_DIR}/game/csgo/cfg`;
+  const cfg = `${cfgDir}/server.cfg`;
   const out = [];
-  // Try enabling live first (takes effect on next map) so a running match still records.
-  try { await rconExec('tv_enable 1'); out.push('tv_enable set on the running server.'); } catch (e) {}
-  // Persist it in start.sh so it survives restarts.
+  // 1) server.cfg — the authoritative place GOTV gets enabled at map load.
+  try {
+    fs.mkdirSync(cfgDir, { recursive: true });
+    let cur = fs.existsSync(cfg) ? fs.readFileSync(cfg, 'utf8') : '';
+    if (!cur.includes(GOTV_MARK)) {
+      cur = (cur.trim() ? cur.trimEnd() + '\n\n' : '') + GOTV_BLOCK + '\n';
+      fs.writeFileSync(cfg, cur);
+      out.push('Wrote GOTV settings into server.cfg.');
+    } else out.push('server.cfg already has GOTV settings.');
+    try { await sh(`chown -R ${STEAM_USER}:${STEAM_USER} ${cfgDir}`); } catch (e) {}
+  } catch (e) { out.push('server.cfg error: ' + e.message); }
+  // 2) start.sh — ensure it execs server.cfg and carries the launch flags.
   let patched = false;
   try {
     const cur = fs.existsSync(startSh) ? fs.readFileSync(startSh, 'utf8') : '';
     if (cur && !/tv_enable/.test(cur)) {
       let next;
-      if (/\+exec server\.cfg/.test(cur)) next = cur.replace(/\+exec server\.cfg/, '+tv_enable 1 +tv_autorecord 0 +tv_delay 0 +tv_dispatchmode 1 +exec server.cfg');
-      else next = cur.replace(/(\.\/cs2 [^\n]*?)(\n)/, `$1 +tv_enable 1 +tv_autorecord 0 +tv_delay 0 +tv_dispatchmode 1$2`);
+      if (/\+exec server\.cfg/.test(cur)) next = cur.replace(/\+exec server\.cfg/, '+tv_enable 1 +tv_delay 0 +tv_autorecord 1 +tv_dispatchmode 1 +exec server.cfg');
+      else next = cur.replace(/(\.\/cs2 [^\n]*?)(\n)/, `$1 +tv_enable 1 +tv_delay 0 +tv_autorecord 1 +tv_dispatchmode 1$2`);
       fs.writeFileSync(startSh, next);
-      try { await sh(`chown -h ${STEAM_USER}:${STEAM_USER} ${startSh}; chown ${STEAM_USER}:${STEAM_USER} ${startSh}`); } catch (e) {}
+      try { await sh(`chown ${STEAM_USER}:${STEAM_USER} ${startSh}`); } catch (e) {}
       patched = true;
       out.push('Added GOTV flags to start.sh.');
-    } else if (/tv_enable/.test(cur)) {
-      out.push('start.sh already enables GOTV.');
-    } else {
-      out.push('Could not read start.sh at ' + startSh + '.');
-    }
-  } catch (e) { out.push('start.sh patch error: ' + e.message); }
-  let restarted = false;
-  if (patched) {
-    const r = await sh(`systemctl restart ${SERVICE}`);
-    restarted = r.ok; liveMap = null;
-    out.push(r.ok ? 'Server restarted so GOTV is active.' : 'Restart failed: ' + r.out);
-  }
-  res.json({ ok: true, patched, restarted, message: out.join(' ') });
+    } else if (/tv_enable/.test(cur)) out.push('start.sh already carries GOTV flags.');
+  } catch (e) { out.push('start.sh error: ' + e.message); }
+  // 3) Restart so GOTV initialises from the cfg at map load.
+  const r = await sh(`systemctl restart ${SERVICE}`);
+  liveMap = null; lastStartStamp = null;
+  out.push(r.ok ? 'Server restarted — GOTV should now be active. Give it ~20s, then use ● Rec.' : 'Restart failed: ' + r.out);
+  res.json({ ok: true, patched, restarted: r.ok, message: out.join(' ') });
 });
 // Toggle a demo's public-approved state
 app.post('/api/demos/approve', requireAuth, (req, res) => {
