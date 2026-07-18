@@ -998,24 +998,39 @@ async function reloadForGotv() {
 }
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
-// Start recording. Ensures GOTV is enabled/persisted, then tv_record. If GOTV
-// isn't active yet (the CS2 boot quirk), reload the map once to start it and
-// retry — after that it stays active and recording is instant.
+// Start recording. GOTV in CS2 boots inactive and, after a map reload, comes
+// back with a non-zero tv_delay (which blocks instant recording with "Only TV
+// Master"). So before EVERY tv_record we force tv_enable 1 + tv_delay 0, and if
+// it's still not recordable we reload the map to (re)start GOTV and retry.
 app.post('/api/record', requireAuth, async (req, res) => {
   const raw = String((req.body && req.body.name) || '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32);
   const name = (raw || 'demo') + '_' + Date.now();
-  const notActive = (t) => /not active|TV Master|GOTV\[?\d*\]? *not/i.test(String(t));
+  const bad = (t) => /not active|TV Master|GOTV\[?\d*\]? *not|delay/i.test(String(t));
+  // Force GOTV master mode with zero delay, then attempt the record.
+  const tryRecord = async () => {
+    await rconExec('tv_enable 1');
+    await rconExec('tv_delay 0');
+    return await rconExec('tv_record ' + name);
+  };
   try {
     ensureGotvConfig();
-    await rconExec('tv_enable 1'); await rconExec('tv_delay 0');
-    let out = await rconExec('tv_record ' + name);
+    let out = await tryRecord();
     let reloaded = false;
-    if (notActive(out)) {
+    // Up to 2 reload+retry passes: each reload re-inits GOTV, and tryRecord
+    // re-applies tv_delay 0 AFTER the map load so the reset default can't block us.
+    for (let i = 0; i < 2 && bad(out); i++) {
+      await rconExec('tv_delay 0');
       reloaded = await reloadForGotv();
-      if (reloaded) { await wait(10000); await rconExec('tv_enable 1'); out = await rconExec('tv_record ' + name); }
+      if (!reloaded) break;
+      await wait(11000);
+      await rconExec('tv_stoprecord'); // clear any partial auto-record
+      out = await tryRecord();
     }
-    const active = !notActive(out);
-    res.json({ ok: active, name: name + '.dem', reloaded, out: String(out).trim() });
+    const active = !bad(out);
+    res.json({
+      ok: active, name: name + '.dem', reloaded, out: String(out).trim(),
+      note: active ? undefined : 'GOTV auto-records every match (tv_autorecord is on) — the demo will still be saved when the round/match ends.',
+    });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 // Stop recording.

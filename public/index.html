@@ -598,7 +598,7 @@ async function startRec(){
   btn.disabled=false; btn.innerHTML=old;
   if(!d){ appendCout('<span class="ln err">Record request failed.</span>'); return; }
   if(d.ok){ appendCout('<span class="ln ok">⏺ recording '+esc(d.name)+(d.reloaded?' (GOTV was started — brief map reload)':'')+'. Click Stop when done.</span>'); }
-  else appendCout('<span class="ln err">Could not start GOTV recording: '+esc(d.out||d.error||'unknown')+'</span>');
+  else{ appendCout('<span class="ln err">Could not start instant recording: '+esc(d.out||d.error||'unknown')+'</span>'); if(d.note) appendCout('<span class="ln info">'+esc(d.note)+'</span>'); }
 }
 async function stopRec(){
   appendCout('<span class="ln dim">Stopping…</span>');
