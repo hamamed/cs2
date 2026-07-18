@@ -215,13 +215,20 @@
           <span class="ms-auto" id="diskWarn"></span></div>
         <div class="p-3 p-md-4">
           <div class="row g-3 align-items-end">
-            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-microchip me-1"></i>CPU</span><span class="pct" id="hCpuP">—</span></div><div class="hbar"><span id="hCpu" class="hgood" style="width:0"></span></div></div>
-            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-memory me-1"></i>RAM</span><span class="pct" id="hMemP">—</span></div><div class="hbar"><span id="hMem" class="hgood" style="width:0"></span></div></div>
-            <div class="col-md-4"><div class="hlabel"><span><i class="fa-solid fa-hard-drive me-1"></i>Disk <span id="hDiskMount" style="font-weight:600;color:var(--text-secondary)"></span></span><span class="pct" id="hDiskP">—</span></div><div class="hbar"><span id="hDisk" class="hgood" style="width:0"></span></div></div>
+            <div class="col-md-6"><div class="hlabel"><span><i class="fa-solid fa-microchip me-1"></i>CPU</span><span class="pct" id="hCpuP">—</span></div><div class="hbar"><span id="hCpu" class="hgood" style="width:0"></span></div></div>
+            <div class="col-md-6"><div class="hlabel"><span><i class="fa-solid fa-memory me-1"></i>RAM</span><span class="pct" id="hMemP">—</span></div><div class="hbar"><span id="hMem" class="hgood" style="width:0"></span></div></div>
           </div>
-          <div class="mt-2" id="hRootRow" style="display:none">
-            <div class="hlabel"><span><i class="fa-solid fa-server me-1"></i>Panel disk <span id="hRootMount" style="font-weight:600;color:var(--text-secondary)"></span></span><span class="pct" id="hRootP">—</span></div>
-            <div class="hbar"><span id="hRoot" class="hgood" style="width:0"></span></div>
+          <div class="row g-3 align-items-end mt-1">
+            <div class="col-md-6">
+              <div class="hlabel"><span><i class="fa-solid fa-gamepad me-1"></i>Game disk</span><span class="pct" id="hDiskP">—</span></div>
+              <div class="hbar"><span id="hDisk" class="hgood" style="width:0"></span></div>
+              <div id="hDiskSub" style="font-size:.72rem;color:var(--text-secondary);font-weight:600;margin-top:3px"></div>
+            </div>
+            <div class="col-md-6" id="hRootCol" style="display:none">
+              <div class="hlabel"><span><i class="fa-solid fa-server me-1"></i>System disk</span><span class="pct" id="hRootP">—</span></div>
+              <div class="hbar"><span id="hRoot" class="hgood" style="width:0"></span></div>
+              <div id="hRootSub" style="font-size:.72rem;color:var(--text-secondary);font-weight:600;margin-top:3px"></div>
+            </div>
           </div>
           <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
             <button class="btn-soft" onclick="clearDownloads()"><i class="fa-solid fa-broom me-1"></i> Clear workshop downloads</button>
@@ -408,6 +415,7 @@
       <div class="wc-card">
         <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-film"></i></span><h6>Recordings (demos)</h6>
           <div class="ms-auto d-flex gap-2">
+            <button class="btn-soft py-1 px-3" onclick="fixRecording()" title="Enable GOTV so recording works (patches start.sh, restarts once)"><i class="fa-solid fa-screwdriver-wrench me-1"></i>Enable recording</button>
             <button class="btn-soft py-1 px-3" onclick="recordPlayer(curTarget())" title="Record (labelled for current target)"><i class="fa-solid fa-circle text-danger me-1"></i>Record target</button>
             <button class="btn-soft py-1 px-3" onclick="stopRecord()"><i class="fa-solid fa-stop me-1"></i>Stop</button>
             <button class="btn-soft py-1 px-3" onclick="loadDemosInline()"><i class="fa-solid fa-rotate"></i></button>
@@ -587,6 +595,14 @@ async function loadDemosInline(){ const el=$('#demosInline'); if(!el) return; co
 function recordPlayer(name){ const safe=(name||'player').replace(/[^a-zA-Z0-9_]/g,'').slice(0,20)||'player'; const fn=safe+'_'+Date.now();
   quick('tv_record '+fn); appendCout('<span class="ln ok">⏺ recording '+esc(fn)+'.dem — captures the whole match, labelled for '+esc(name)+'. Click Stop when done.</span>'); }
 function stopRecord(){ quick('tv_stoprecord'); appendCout('<span class="ln info">⏹ stopped recording</span>'); setTimeout(loadDemosInline,1500); }
+async function fixRecording(){
+  if(!confirm('Enable GOTV recording?\n\nThis makes sure SourceTV is on (required for tv_record). If start.sh needs the flag added, the server restarts ONCE. Players will reconnect after ~15s.')) return;
+  appendCout('<span class="ln dim">Enabling GOTV…</span>');
+  let d; try{ d=await (await api('/api/fixrecording',{method:'POST'})).json(); }catch(e){ d=null; }
+  if(!d||!d.ok){ alert('Could not enable recording.'); return; }
+  appendCout('<span class="ln ok">'+esc(d.message||'done')+'</span>');
+  alert(d.message + (d.restarted?'\n\nDone — recording is ready. Use ● Rec to start.':'\n\nRecording is ready. Use ● Rec to start.'));
+}
 
 // ---- server health ----
 function hbar(el,pct){ const e=$(el); e.style.width=Math.max(0,Math.min(100,pct||0))+'%'; e.className=(pct>=85?'hbad':pct>=70?'hwarn':'hgood'); }
@@ -595,15 +611,17 @@ async function loadHealth(){
   if(!d.ok) return;
   $('#hCpuP').textContent=d.cpuPct+'%  ('+d.load+' load)'; hbar('#hCpu',d.cpuPct);
   $('#hMemP').textContent=d.memPct+'%  ('+d.memUsedGB+'/'+d.memTotalGB+'GB)'; hbar('#hMem',d.memPct);
-  $('#hDiskP').textContent=(d.diskPct||0)+'%  ('+d.diskUsed+'/'+d.diskTotal+')'; hbar('#hDisk',d.diskPct);
-  if($('#hDiskMount')) $('#hDiskMount').textContent = d.diskMount && d.diskMount!=='/' ? '· '+d.diskMount : '';
-  // Panel/root disk row — only shown when CS2 lives on a separate volume
-  const rootRow=$('#hRootRow');
-  if(rootRow){
-    if(d.rootPct!=null){ rootRow.style.display=''; $('#hRootP').textContent=d.rootPct+'%  ('+d.rootUsed+'/'+d.rootTotal+')'; hbar('#hRoot',d.rootPct); if($('#hRootMount'))$('#hRootMount').textContent='· '+(d.rootMount||'/'); }
-    else rootRow.style.display='none';
+  $('#hDiskP').textContent=(d.diskPct||0)+'%  ('+d.diskUsed+' / '+d.diskTotal+')'; hbar('#hDisk',d.diskPct);
+  // Friendly subtitle: name the location, not the raw mount path
+  const onVol = d.diskMount && d.diskMount!=='/';
+  if($('#hDiskSub')) $('#hDiskSub').textContent = onVol ? ('Data volume · '+d.diskMount) : 'On system disk';
+  // System/root disk — only shown when CS2 lives on a separate volume
+  const rootCol=$('#hRootCol');
+  if(rootCol){
+    if(d.rootPct!=null){ rootCol.style.display=''; $('#hRootP').textContent=d.rootPct+'%  ('+d.rootUsed+' / '+d.rootTotal+')'; hbar('#hRoot',d.rootPct); if($('#hRootSub'))$('#hRootSub').textContent='Panel & OS · '+(d.rootMount||'/'); }
+    else rootCol.style.display='none';
   }
-  $('#diskWarn').innerHTML = d.diskPct>=85 ? '<span class="pill-off status-pill" style="font-size:.78rem"><i class="fa-solid fa-triangle-exclamation"></i> Disk '+d.diskPct+'% — clean up!</span>' : '';
+  $('#diskWarn').innerHTML = d.diskPct>=85 ? '<span class="pill-off status-pill" style="font-size:.78rem"><i class="fa-solid fa-triangle-exclamation"></i> Game disk '+d.diskPct+'% — clean up!</span>' : '';
 }
 async function clearDownloads(){
   $('#diskInfo').innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Clearing…';

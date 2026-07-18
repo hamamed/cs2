@@ -932,6 +932,40 @@ app.get('/api/demos', requireAuth, (req, res) => {
   const ap = new Set(readApproved());
   res.json({ ok: true, demos: listDemos().map(d => ({ ...d, approved: ap.has(d.name) })) });
 });
+// Ensure GOTV is enabled so tv_record works: check the running server, and if
+// it's off, patch start.sh to add the tv_* launch flags and restart. A fresh
+// install can drop server.cfg (which used to enable it), breaking recording.
+app.post('/api/fixrecording', requireAuth, async (req, res) => {
+  const startSh = `${CS2_DIR}/start.sh`;
+  const out = [];
+  // Try enabling live first (takes effect on next map) so a running match still records.
+  try { await rconExec('tv_enable 1'); out.push('tv_enable set on the running server.'); } catch (e) {}
+  // Persist it in start.sh so it survives restarts.
+  let patched = false;
+  try {
+    const cur = fs.existsSync(startSh) ? fs.readFileSync(startSh, 'utf8') : '';
+    if (cur && !/tv_enable/.test(cur)) {
+      let next;
+      if (/\+exec server\.cfg/.test(cur)) next = cur.replace(/\+exec server\.cfg/, '+tv_enable 1 +tv_autorecord 0 +tv_delay 0 +tv_dispatchmode 1 +exec server.cfg');
+      else next = cur.replace(/(\.\/cs2 [^\n]*?)(\n)/, `$1 +tv_enable 1 +tv_autorecord 0 +tv_delay 0 +tv_dispatchmode 1$2`);
+      fs.writeFileSync(startSh, next);
+      try { await sh(`chown -h ${STEAM_USER}:${STEAM_USER} ${startSh}; chown ${STEAM_USER}:${STEAM_USER} ${startSh}`); } catch (e) {}
+      patched = true;
+      out.push('Added GOTV flags to start.sh.');
+    } else if (/tv_enable/.test(cur)) {
+      out.push('start.sh already enables GOTV.');
+    } else {
+      out.push('Could not read start.sh at ' + startSh + '.');
+    }
+  } catch (e) { out.push('start.sh patch error: ' + e.message); }
+  let restarted = false;
+  if (patched) {
+    const r = await sh(`systemctl restart ${SERVICE}`);
+    restarted = r.ok; liveMap = null;
+    out.push(r.ok ? 'Server restarted so GOTV is active.' : 'Restart failed: ' + r.out);
+  }
+  res.json({ ok: true, patched, restarted, message: out.join(' ') });
+});
 // Toggle a demo's public-approved state
 app.post('/api/demos/approve', requireAuth, (req, res) => {
   const name = String((req.body && req.body.file) || '').replace(/[^a-zA-Z0-9_.\-]/g, '');

@@ -15,4 +15,5 @@ cd /home/steam/cs2_server/game/bin/linuxsteamrt64
   +sv_password "$SV_PW" \
   +rcon_password "$RCON_PW" \
   +sv_kick_players_with_cooldown 0 \
+  +tv_enable 1 +tv_autorecord 0 +tv_delay 0 +tv_dispatchmode 1 \
   +exec server.cfg
