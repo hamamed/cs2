@@ -387,8 +387,8 @@
             </div>
             <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
               <span class="lbl mb-0 me-1"><i class="fa-solid fa-video me-1"></i>Demos</span>
-              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('tv_record manual_'+Date.now())">Start Recording</button>
-              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="quick('tv_stoprecord')">Stop Recording</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="startRec()">Record</button>
+              <button class="btn-soft py-1 px-2" style="font-size:.78rem" onclick="stopRec()">Stop</button>
               <button class="btn-accent py-1 px-2" style="font-size:.78rem" data-bs-toggle="modal" data-bs-target="#demosModal" onclick="loadDemos()"><i class="fa-solid fa-film me-1"></i>Browse &amp; Download</button>
             </div>
           </div>
@@ -415,10 +415,9 @@
       <div class="wc-card">
         <div class="card-head"><span class="head-icon ic-gold"><i class="fa-solid fa-film"></i></span><h6>Recordings (demos)</h6>
           <div class="ms-auto d-flex gap-2">
-            <button class="btn-soft py-1 px-3" onclick="fixRecording()" title="Enable GOTV so recording works (patches start.sh, restarts once)"><i class="fa-solid fa-screwdriver-wrench me-1"></i>Enable recording</button>
-            <button class="btn-soft py-1 px-3" onclick="recordPlayer(curTarget())" title="Record (labelled for current target)"><i class="fa-solid fa-circle text-danger me-1"></i>Record target</button>
-            <button class="btn-soft py-1 px-3" onclick="stopRecord()"><i class="fa-solid fa-stop me-1"></i>Stop</button>
-            <button class="btn-soft py-1 px-3" onclick="loadDemosInline()"><i class="fa-solid fa-rotate"></i></button>
+            <button class="btn-soft py-1 px-3" id="recBtn" onclick="startRec()" title="Start recording a demo of the match"><i class="fa-solid fa-circle text-danger me-1"></i>Record</button>
+            <button class="btn-soft py-1 px-3" onclick="stopRec()" title="Stop recording and save the demo"><i class="fa-solid fa-stop me-1"></i>Stop</button>
+            <button class="btn-soft py-1 px-3" onclick="loadDemosInline()" title="Refresh list"><i class="fa-solid fa-rotate"></i></button>
           </div>
         </div>
         <div class="p-3 p-md-4" id="demosInline"><div class="text-secondary fw-bold py-2">Loading…</div></div>
@@ -557,10 +556,9 @@ async function loadPlayers(){
   const rows=d.players.map((p,i)=>{
     const isBot = fromStatus ? p.bot : (i >= (n-botCount));
     const kickBtn = (!isBot || p.userid) ? `<button class="kick" onclick='kickPlayer(${JSON.stringify(p.userid||null)},${JSON.stringify(p.name||"")})'>Kick</button>` : '';
-    const recBtn = `<button class="kick" style="background:var(--accent-soft);color:var(--accent)" onclick='recordPlayer(${JSON.stringify(p.name||"player")})' title="Record a demo labelled for this player">● Rec</button>`;
     const meta = fromStatus ? '' : `<span class="pscore">${p.score} pts</span><span class="ptime">${fmtDur(p.duration)}</span>`;
     return `<div class="prow ${isBot?'bot':''}"><span class="pav"><i class="fa-solid ${isBot?'fa-robot':'fa-user'}"></i></span>`+
-      `<span class="pname">${esc(p.name||'(connecting)')}</span>${meta}${recBtn}${kickBtn}</div>`;
+      `<span class="pname">${esc(p.name||'(connecting)')}</span>${meta}${kickBtn}</div>`;
   }).join('');
   const note = fromStatus ? '' : ' <span style="font-weight:600;opacity:.7">(names hidden by CS2 — counts only)</span>';
   b.innerHTML='<div class="lbl mb-2">'+n+' connected'+(d.bots!=null?' · '+botCount+' bots':'')+note+'</div><div class="plist">'+rows+'</div>';
@@ -591,17 +589,22 @@ async function deleteDemo(name){ if(!confirm('Delete '+name+'? This permanently 
 async function fetchDemos(){ try{ const d=await (await api('/api/demos')).json(); return d.ok?d.demos:[]; }catch(e){ return []; } }
 async function loadDemos(){ const d=await fetchDemos(); const el=$('#demosBody'); if(el) el.innerHTML = d.length? demoRows(d) : '<div class="text-secondary fw-bold py-3 text-center"><i class="fa-solid fa-film me-1"></i>No demos yet.</div>'; }
 async function loadDemosInline(){ const el=$('#demosInline'); if(!el) return; const d=await fetchDemos();
-  el.innerHTML = d.length? demoRows(d.slice(0,12)) : '<div class="text-secondary fw-bold py-2"><i class="fa-solid fa-film me-1"></i>No recordings yet — they appear after matches (or use ● Rec on a player).</div>'; }
-function recordPlayer(name){ const safe=(name||'player').replace(/[^a-zA-Z0-9_]/g,'').slice(0,20)||'player'; const fn=safe+'_'+Date.now();
-  quick('tv_record '+fn); appendCout('<span class="ln ok">⏺ recording '+esc(fn)+'.dem — captures the whole match, labelled for '+esc(name)+'. Click Stop when done.</span>'); }
-function stopRecord(){ quick('tv_stoprecord'); appendCout('<span class="ln info">⏹ stopped recording</span>'); setTimeout(loadDemosInline,1500); }
-async function fixRecording(){
-  if(!confirm('Enable GOTV recording?\n\nThis writes the GOTV settings into server.cfg and restarts the server ONCE so SourceTV actually starts. Players reconnect after ~15-20s. Then use ● Rec.')) return;
-  appendCout('<span class="ln dim">Enabling GOTV (writing server.cfg + restarting)…</span>');
-  let d; try{ d=await (await api('/api/fixrecording',{method:'POST'})).json(); }catch(e){ d=null; }
-  if(!d||!d.ok){ alert('Could not enable recording.'); return; }
-  appendCout('<span class="ln ok">'+esc(d.message||'done')+'</span>');
-  alert(d.message+'\n\nWait ~20s for the map to load, THEN click ● Rec. tv_record should now work (no more “GOTV not active”).');
+  el.innerHTML = d.length? demoRows(d.slice(0,12)) : '<div class="text-secondary fw-bold py-2"><i class="fa-solid fa-film me-1"></i>No recordings yet — click Record, or they appear automatically after matches.</div>'; }
+async function startRec(){
+  const btn=$('#recBtn'), old=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin me-1"></i>Starting…';
+  appendCout('<span class="ln dim">Starting recording…</span>');
+  let d; try{ d=await (await api('/api/record',{method:'POST',body:JSON.stringify({name:'match'})})).json(); }catch(e){ d=null; }
+  btn.disabled=false; btn.innerHTML=old;
+  if(!d){ appendCout('<span class="ln err">Record request failed.</span>'); return; }
+  if(d.ok){ appendCout('<span class="ln ok">⏺ recording '+esc(d.name)+(d.reloaded?' (GOTV was started — brief map reload)':'')+'. Click Stop when done.</span>'); }
+  else appendCout('<span class="ln err">Could not start GOTV recording: '+esc(d.out||d.error||'unknown')+'</span>');
+}
+async function stopRec(){
+  appendCout('<span class="ln dim">Stopping…</span>');
+  let d; try{ d=await (await api('/api/stoprecord',{method:'POST'})).json(); }catch(e){ d=null; }
+  appendCout('<span class="ln info">⏹ '+esc((d&&d.out)||'stopped recording')+'</span>');
+  setTimeout(loadDemosInline,1800);
 }
 
 // ---- server health ----
